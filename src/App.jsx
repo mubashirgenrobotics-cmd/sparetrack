@@ -538,25 +538,31 @@ function DatabasePage({ data, toast }) {
 //  MAIN APP WRAPPER
 // ═══════════════════════════════════════════════════════
 export default function App() {
-  const [user, setUser] = useState(null);
+  // 1. Check Local Storage when the app first loads
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('sparetrack_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState({ engineers: [], parts: [], requests: [], utilization: [], purchaseRequests: [] });
   const { toasts, toast } = useToasts();
 
-  // Firestore Real-time Sync
-  useEffect(() => {
-    const collections = ['engineers', 'parts', 'requests', 'utilization', 'purchaseRequests'];
-    const unsubscribes = collections.map(col => 
-      onSnapshot(collection(db, col), (snapshot) => {
-        setData(prev => ({ ...prev, [col]: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
-      })
-    );
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, []);
+  // ... (Keep your existing useEffect here)
 
-  const handleLogin  = acc => { setUser(acc); setPage('dashboard'); };
-  const handleLogout = ()  => { setUser(null); setPage('dashboard'); };
-
+  // 2. Save to Local Storage when logging in
+  const handleLogin = acc => { 
+    setUser(acc); 
+    localStorage.setItem('sparetrack_user', JSON.stringify(acc));
+    setPage('dashboard'); 
+  };
+  
+  // 3. Clear from Local Storage when logging out
+  const handleLogout = () => { 
+    setUser(null); 
+    localStorage.removeItem('sparetrack_user');
+    setPage('dashboard'); 
+  };
   if (!user) return <><style>{CSS}</style><LoginPage onLogin={handleLogin} /></>;
 
   const pageProps = { user, data, toast, setPage };
