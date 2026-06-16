@@ -7,11 +7,12 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { 
   LayoutDashboard, Wrench, ClipboardCheck, Package, 
-  Database, FileText
+  Database, FileText, PieChart as PieChartIcon
 } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 // ═══════════════════════════════════════════════════════
-//  STYLES (Enterprise Layout & Tabs)
+//  STYLES
 // ═══════════════════════════════════════════════════════
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -32,23 +33,20 @@ main { flex: 1; overflow-y: auto; padding: 32px 40px; }
 .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
 .page-title { font-size: 24px; font-weight: 600; }
 
-/* Dashboard Tabs */
 .dash-tabs { display: flex; gap: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
-.dash-tab { background: none; border: none; color: var(--muted); padding: 12px 4px; font-size: 15px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.dash-tab { display: flex; align-items: center; gap: 8px; background: none; border: none; color: var(--muted); padding: 12px 4px; font-size: 15px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
 .dash-tab:hover { color: var(--text); }
 .dash-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* Grids & Cards */
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 32px; }
-.grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
 .card-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--text); display:flex; justify-content:space-between; align-items:center; }
 .stat-box { display: flex; flex-direction: column; gap: 8px; }
 .stat-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-value { font-size: 32px; font-weight: 700; color: var(--text); }
 
-/* Tables & Inputs */
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; padding: 12px 16px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
 td { padding: 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
@@ -58,21 +56,21 @@ tr:hover td { background: var(--surface-hover); }
 .b-completed { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
 .b-assigned { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
 .select-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; outline: none; }
-
-/* Animations */
 .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Recharts Customization */
+.recharts-default-tooltip { background-color: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px; }
 `;
 
 // ═══════════════════════════════════════════════════════
 //  MAIN APP SHELL
 // ═══════════════════════════════════════════════════════
 export default function App() {
-  const [user, setUser] = useState({ role: 'admin', name: 'Admin Hub' }); // Forced to Admin for testing Phase 1
+  const [user, setUser] = useState({ role: 'admin', name: 'Admin Hub' });
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState({ tickets: [], products: [], inspections: [], parts: [] });
 
-  // Sync with Firebase
   useEffect(() => {
     const cols = ['tickets', 'products', 'inspections', 'parts'];
     const unsubs = cols.map(col => 
@@ -104,7 +102,6 @@ export default function App() {
         <main>
           {page === 'dashboard' && <AdminDashboard data={data} />}
           {page === 'complaints' && <ComplaintRegistry data={data} />}
-          {/* Inspections, Store, and Database components will be built in the next phases */}
         </main>
       </div>
     </>
@@ -112,24 +109,43 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  ADMIN DASHBOARD (Dual Window Layout)
+//  ADMIN DASHBOARD (Tri-Window Layout with Analytics)
 // ═══════════════════════════════════════════════════════
 function AdminDashboard({ data }) {
-  const [activeWindow, setActiveWindow] = useState('service'); // 'service' or 'inspection'
+  const [activeWindow, setActiveWindow] = useState('analytics'); // 'service', 'inspection', or 'analytics'
   const [selectedProduct, setSelectedProduct] = useState("");
+  const [engFilter, setEngFilter] = useState("All");
   
   const prodDetails = data.products.find(p => p.id === selectedProduct);
 
-  // Service Metrics
-  const srvTotal = data.tickets.length;
-  const srvPending = data.tickets.filter(t => t.status === 'Pending' || t.status === 'Assigned').length;
-  const srvCompleted = data.tickets.filter(t => t.status === 'Completed').length;
+  // --- DATA PROCESSING FOR ANALYTICS ---
   
-  // Inspection Metrics
-  const inspTotal = data.inspections.length;
-  const inspPending = data.inspections.filter(i => i.status === 'Pending').length;
-  const inspCompleted = data.inspections.filter(i => i.status === 'Completed').length;
+  // 1. Engineer Performance Data
+  const engStatsMap = {};
+  data.tickets.forEach(t => {
+    const eng = t.assignedEngineer || 'Unassigned';
+    if (!engStatsMap[eng]) engStatsMap[eng] = { name: eng, Pending: 0, Completed: 0, Total: 0 };
+    engStatsMap[eng].Total += 1;
+    if (t.status === 'Completed') engStatsMap[eng].Completed += 1;
+    else engStatsMap[eng].Pending += 1;
+  });
+  const engineerData = Object.values(engStatsMap);
 
+  // 2. Engineer Pie Chart Data (Based on selected filter)
+  const pieData = engineerData.map(e => ({ name: e.name, value: e.Total }));
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+  // 3. Project Distribution Data
+  const projectStatsMap = {};
+  data.tickets.forEach(t => {
+    const prod = data.products.find(p => p.id === t.productId);
+    const proj = prod?.project || 'Unassigned Project';
+    if (!projectStatsMap[proj]) projectStatsMap[proj] = { name: proj, tickets: 0 };
+    projectStatsMap[proj].tickets += 1;
+  });
+  const projectData = Object.values(projectStatsMap);
+
+  // --- RENDER ---
   return (
     <div>
       <div className="header-flex">
@@ -141,40 +157,97 @@ function AdminDashboard({ data }) {
         </select>
       </div>
 
-      {/* WINDOW TOGGLE TABS */}
       <div className="dash-tabs">
-        <button 
-          className={`dash-tab ${activeWindow === 'service' ? 'active' : ''}`} 
-          onClick={() => setActiveWindow('service')}
-        >
-          Service Window
-        </button>
-        <button 
-          className={`dash-tab ${activeWindow === 'inspection' ? 'active' : ''}`} 
-          onClick={() => setActiveWindow('inspection')}
-        >
-          Inspection Window
-        </button>
+        <button className={`dash-tab ${activeWindow === 'analytics' ? 'active' : ''}`} onClick={() => setActiveWindow('analytics')}><PieChartIcon size={18}/> Analytics</button>
+        <button className={`dash-tab ${activeWindow === 'service' ? 'active' : ''}`} onClick={() => setActiveWindow('service')}><Wrench size={18}/> Services</button>
+        <button className={`dash-tab ${activeWindow === 'inspection' ? 'active' : ''}`} onClick={() => setActiveWindow('inspection')}><ClipboardCheck size={18}/> Inspections</button>
       </div>
 
-      {/* 🟢 WINDOW 1: SERVICE */}
+      {/* 🟣 WINDOW 1: ANALYTICS & REPORTS */}
+      {activeWindow === 'analytics' && (
+        <div className="animate-fade-in">
+          <div className="grid-2">
+            
+            {/* Engineer Performance Chart */}
+            <div className="card">
+              <div className="card-title">
+                Engineer Workload (Total Tickets)
+                <select className="select-input" value={engFilter} onChange={e => setEngFilter(e.target.value)}>
+                  <option value="All">All Engineers</option>
+                  {engineerData.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                </select>
+              </div>
+              <div style={{ width: '100%', height: 300 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie 
+                      data={engFilter === 'All' ? pieData : pieData.filter(d => d.name === engFilter)} 
+                      cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                      label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Project Distribution Chart */}
+            <div className="card">
+              <div className="card-title">Project-Wise Ticket Volume</div>
+              <div style={{ width: '100%', height: 300 }}>
+                <ResponsiveContainer>
+                  <BarChart data={projectData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="name" stroke="var(--muted)" fontSize={12} tickLine={false} />
+                    <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{fill: 'var(--surface-hover)'}} />
+                    <Bar dataKey="tickets" fill="var(--accent)" radius={[4, 4, 0, 0]} barSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Engineer Detail Table */}
+          <div className="card">
+            <div className="card-title">Engineer Service History Summary</div>
+            <table>
+              <thead><tr><th>Engineer Name</th><th>Total Assigned</th><th>Completed</th><th>Pending</th><th>Completion Rate</th></tr></thead>
+              <tbody>
+                {engineerData.map(e => (
+                  <tr key={e.name}>
+                    <td style={{fontWeight: 600}}>{e.name}</td>
+                    <td>{e.Total}</td>
+                    <td style={{color:'var(--success)'}}>{e.Completed}</td>
+                    <td style={{color:'var(--warn)'}}>{e.Pending}</td>
+                    <td>
+                      <div style={{display:'flex', alignItems:'center', gap:10}}>
+                        <div style={{flex:1, height:6, background:'var(--surface-hover)', borderRadius:3, overflow:'hidden'}}>
+                          <div style={{height:'100%', width:`${(e.Completed/e.Total)*100}%`, background:'var(--success)'}}></div>
+                        </div>
+                        <span style={{fontSize:12, color:'var(--muted)'}}>{((e.Completed/e.Total)*100).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {engineerData.length === 0 && <tr><td colSpan="5" style={{textAlign:'center', color:'var(--muted)'}}>No engineer data available</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 WINDOW 2: SERVICES (Existing logic) */}
       {activeWindow === 'service' && (
         <div className="animate-fade-in">
           <div className="grid-3">
-            <div className="card stat-box">
-              <span className="stat-label">Total Complaints</span>
-              <span className="stat-value">{srvTotal}</span>
-            </div>
-            <div className="card stat-box">
-              <span className="stat-label" style={{color:'var(--warn)'}}>Pending / Assigned</span>
-              <span className="stat-value" style={{color:'var(--warn)'}}>{srvPending}</span>
-            </div>
-            <div className="card stat-box">
-              <span className="stat-label" style={{color:'var(--success)'}}>Completed Services</span>
-              <span className="stat-value" style={{color:'var(--success)'}}>{srvCompleted}</span>
-            </div>
+            <div className="card stat-box"><span className="stat-label">Total Complaints</span><span className="stat-value">{data.tickets.length}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--warn)'}}>Pending</span><span className="stat-value" style={{color:'var(--warn)'}}>{data.tickets.filter(t=>t.status==='Pending').length}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--success)'}}>Completed</span><span className="stat-value" style={{color:'var(--success)'}}>{data.tickets.filter(t=>t.status==='Completed').length}</span></div>
           </div>
-
           <div className="grid-2">
             <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
               <div className="card-title">Recent Complaints</div>
@@ -183,84 +256,41 @@ function AdminDashboard({ data }) {
                 <tbody>
                   {data.tickets.slice(0, 5).map(t => {
                     const p = data.products.find(x => x.id === t.productId);
-                    return (
-                      <tr key={t.id}>
-                        <td style={{fontFamily:'var(--mono)', fontWeight:600}}>{t.ticketId}</td>
-                        <td>{p?.category || 'Unknown'}</td>
-                        <td><span className={`badge b-${t.status.toLowerCase()}`}>{t.status}</span></td>
-                        <td>{t.assignedEngineer || 'Unassigned'}</td>
-                      </tr>
-                    );
+                    return <tr key={t.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{t.ticketId}</td><td>{p?.category || 'Unknown'}</td><td><span className={`badge b-${t.status.toLowerCase()}`}>{t.status}</span></td><td>{t.assignedEngineer || 'Unassigned'}</td></tr>
                   })}
-                  {data.tickets.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', color:'var(--muted)'}}>No recent complaints</td></tr>}
                 </tbody>
               </table>
             </div>
-
             <div className="card">
               <div className="card-title">Product Lookup</div>
-              <select 
-                className="select-input" 
-                style={{width: '100%', marginBottom: 20}}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-                value={selectedProduct}
-              >
+              <select className="select-input" style={{width: '100%', marginBottom: 20}} onChange={(e) => setSelectedProduct(e.target.value)} value={selectedProduct}>
                 <option value="">Select a Product...</option>
                 {data.products.map(p => <option key={p.id} value={p.id}>{p.serialNo} - {p.customerName}</option>)}
               </select>
-
               {prodDetails ? (
                 <div style={{display:'flex', flexDirection:'column', gap:'12px', background:'var(--bg)', padding:'16px', borderRadius:'8px'}}>
                   <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Customer:</span> <strong>{prodDetails.customerName}</strong></div>
-                  <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Category:</span> <strong>{prodDetails.category}</strong></div>
                   <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Project:</span> <strong>{prodDetails.project}</strong></div>
-                  <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Warranty:</span> <strong style={{color:'var(--success)'}}>{prodDetails.warrantyStatus}</strong></div>
                   <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Zone Eng:</span> <strong>{prodDetails.zoneEngineerId}</strong></div>
                 </div>
-              ) : (
-                <div style={{textAlign:'center', color:'var(--muted)', padding:'20px 0'}}>Select a product to view details.</div>
-              )}
+              ) : <div style={{textAlign:'center', color:'var(--muted)', padding:'20px 0'}}>Select a product.</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* 🔵 WINDOW 2: INSPECTIONS */}
+      {/* 🔵 WINDOW 3: INSPECTIONS (Existing logic) */}
       {activeWindow === 'inspection' && (
         <div className="animate-fade-in">
-          <div className="grid-3">
-            <div className="card stat-box">
-              <span className="stat-label">Total Scheduled</span>
-              <span className="stat-value">{inspTotal}</span>
-            </div>
-            <div className="card stat-box">
-              <span className="stat-label" style={{color:'var(--accent)'}}>Pending Inspections</span>
-              <span className="stat-value" style={{color:'var(--accent)'}}>{inspPending}</span>
-            </div>
-            <div className="card stat-box">
-              <span className="stat-label" style={{color:'var(--success)'}}>Completed</span>
-              <span className="stat-value" style={{color:'var(--success)'}}>{inspCompleted}</span>
-            </div>
-          </div>
-
-          <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
+           <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
             <div className="card-title">Upcoming Periodic Inspections</div>
             <table>
               <thead><tr><th>Inspection ID</th><th>Product & Site</th><th>Quarter</th><th>Scheduled Date</th><th>Status</th></tr></thead>
               <tbody>
                 {data.inspections.map(i => {
                   const p = data.products.find(x => x.id === i.productId);
-                  return (
-                    <tr key={i.id}>
-                      <td style={{fontFamily:'var(--mono)', fontWeight:600}}>{i.id}</td>
-                      <td>{p?.category} - {p?.customerName}</td>
-                      <td><span className="badge" style={{background:'var(--surface-hover)'}}>{i.quarter}</span></td>
-                      <td>{i.scheduledDate}</td>
-                      <td><span className={`badge b-${i.status.toLowerCase()}`}>{i.status}</span></td>
-                    </tr>
-                  );
+                  return <tr key={i.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{i.id}</td><td>{p?.category} - {p?.customerName}</td><td><span className="badge" style={{background:'var(--surface-hover)'}}>{i.quarter}</span></td><td>{i.scheduledDate}</td><td><span className={`badge b-${i.status.toLowerCase()}`}>{i.status}</span></td></tr>
                 })}
-                {data.inspections.length === 0 && <tr><td colSpan="5" style={{textAlign:'center', color:'var(--muted)', padding:'30px'}}>No inspections scheduled yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -270,21 +300,11 @@ function AdminDashboard({ data }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════
-//  COMPLAINT REGISTRY (Shell for next phase)
-// ═══════════════════════════════════════════════════════
 function ComplaintRegistry({ data }) {
   return (
     <div>
-      <div className="header-flex">
-        <h1 className="page-title">Complaint & Service Registry</h1>
-        <button style={{background:'var(--accent)', color:'white', border:'none', padding:'10px 16px', borderRadius:'6px', fontWeight:600, cursor:'pointer'}}>
-          + Register Complaint
-        </button>
-      </div>
-      <div className="card">
-         <p style={{color: 'var(--muted)'}}>Complaint list, filtering system, and photo upload forms will be built here in Phase 2.</p>
-      </div>
+      <div className="header-flex"><h1 className="page-title">Complaint & Service Registry</h1></div>
+      <div className="card"><p style={{color: 'var(--muted)'}}>Complaint list form building in Phase 2.</p></div>
     </div>
   );
 }
