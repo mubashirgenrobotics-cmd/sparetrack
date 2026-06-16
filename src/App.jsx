@@ -88,10 +88,6 @@ tr:hover td{background:rgba(30,35,53,.6)}
 .badge-low{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.3)}
 .badge-ok{background:rgba(34,197,94,.12);color:var(--success);border:1px solid rgba(34,197,94,.3)}
 .badge-critical{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.5)}
-.badge-engineer{background:rgba(168,85,247,.15);color:#c4b5fd;border:1px solid rgba(168,85,247,.3)}
-.badge-admin{background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.3)}
-.badge-store{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.3)}
-.badge-purchase{background:rgba(245,158,11,.15);color:#fcd34d;border:1px solid rgba(245,158,11,.3)}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:5px;border:none;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s}
 .btn:active{transform:scale(.98)}
 .btn-primary{background:var(--accent);color:white}
@@ -103,18 +99,11 @@ tr:hover td{background:rgba(30,35,53,.6)}
 .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
 .btn-ghost:hover{color:var(--text);background:var(--surface2)}
 .btn-sm{padding:4px 10px;font-size:12px}
-.btn-warn{background:var(--warn);color:#0f1117}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:20px}
 .form-group{display:flex;flex-direction:column;gap:5px}
 .form-group label{font-size:12px;color:var(--muted);font-weight:500}
 .form-group input,.form-group select,.form-group textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:5px;font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
-.form-group textarea{resize:vertical;min-height:70px}
-.stock-bar{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:4px}
-.stock-bar-fill{height:100%;border-radius:3px;transition:width .3s}
-.alert{padding:12px 16px;border-radius:6px;font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
-.alert-warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fde68a}
-.alert-danger{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#fca5a5}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media(max-width:900px){.two-col{grid-template-columns:1fr}}
 .eng-stock-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:10px}
@@ -123,11 +112,6 @@ tr:hover td{background:rgba(30,35,53,.6)}
 .text-muted{color:var(--muted)}
 .text-mono{font-family:var(--mono)}
 .text-sm{font-size:12px}
-.mb-3{margin-bottom:12px}
-.flex{display:flex}
-.gap-2{gap:8px}
-.items-center{align-items:center}
-.justify-between{justify-content:space-between}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;width:500px;max-width:95vw;max-height:85vh;overflow-y:auto}
 .modal-title{font-size:16px;font-weight:600;margin-bottom:16px}
@@ -156,9 +140,6 @@ const NAV_CONFIG = {
     { page: 'dashboard',    icon: '⬡', label: 'Dashboard' },
     { section: 'Operations' },
     { page: 'requests',     icon: '📋', label: 'Spare Requests',    hasBadge: 'pendingReq' },
-    { page: 'stock',        icon: '📦', label: 'Stock Management' },
-    { page: 'utilization',  icon: '🔧', label: 'Utilization Log' },
-    { page: 'purchase',     icon: '🛒', label: 'Purchase Requests', hasBadge: 'pendingPR' },
     { section: 'Admin' },
     { page: 'database',     icon: '🗄', label: 'Database' },
   ],
@@ -166,25 +147,19 @@ const NAV_CONFIG = {
     { page: 'dashboard',    icon: '⬡', label: 'My Dashboard' },
     { section: 'My Work' },
     { page: 'requests',     icon: '📋', label: 'My Requests' },
-    { page: 'stock',        icon: '📦', label: 'My Stock' },
-    { page: 'utilization',  icon: '🔧', label: 'Log Utilization' },
   ],
   store:    [
     { page: 'dashboard',    icon: '⬡', label: 'Store Dashboard' },
     { section: 'Store' },
     { page: 'requests',     icon: '📋', label: 'Issue Parts',        hasBadge: 'approvedReq' },
-    { page: 'stock',        icon: '📦', label: 'Central Stock' },
   ],
   purchase: [
     { page: 'dashboard',    icon: '⬡', label: 'Purchase Dashboard' },
-    { section: 'Procurement' },
-    { page: 'purchase',     icon: '🛒', label: 'Purchase Requests' },
   ],
 };
 
 const ROLE_LABELS = { admin: 'Admin', engineer: 'Engineer', store: 'Store Team', purchase: 'Purchase Team' };
 const today = () => new Date().toISOString().split('T')[0];
-const now   = () => new Date().toLocaleString('en-GB', { hour12: false }).replace(',', '');
 
 // ═══════════════════════════════════════════════════════
 //  UTILITIES & COMPONENTS
@@ -302,7 +277,7 @@ function Sidebar({ user, activePage, setPage, data, onLogout }) {
 // ═══════════════════════════════════════════════════════
 //  PAGE COMPONENTS
 // ═══════════════════════════════════════════════════════
-function Dashboard({ user, data, setPage, toast }) {
+function Dashboard({ user, data, toast }) {
   const { role, engineerId } = user;
   const totalStock = data.parts.reduce((s, p) => s + (Number(p.storeStock) || 0), 0);
   const lowParts   = data.parts.filter(p => p.storeStock < p.minStock).length;
@@ -332,7 +307,6 @@ function Dashboard({ user, data, setPage, toast }) {
 
   if (role === 'engineer') {
     const myReqs  = data.requests.filter(r => r.engineerId === engineerId);
-    const myUtils = data.utilization.filter(u => u.engineerId === engineerId);
     return (
       <div>
         <div className="page-title">My Dashboard</div>
@@ -341,14 +315,12 @@ function Dashboard({ user, data, setPage, toast }) {
           <div className="stat-card accent"><div className="label">Stock Types</div><div className="value">{data.parts.filter(p => (p.engineerStock && p.engineerStock[engineerId] > 0)).length}</div></div>
           <div className="stat-card"><div className="label">My Requests</div><div className="value">{myReqs.length}</div></div>
           <div className="stat-card warn"><div className="label">Pending Approval</div><div className="value">{myReqs.filter(r => r.status === 'Pending').length}</div></div>
-          <div className="stat-card success"><div className="label">Utilizations</div><div className="value">{myUtils.length}</div></div>
         </div>
         <div className="card"><div className="card-title">My Stock</div>{buildEngStock(engineerId)}</div>
       </div>
     );
   }
 
-  // Common Admin / Store view
   return (
     <div>
       <div className="page-title">Command Center</div>
@@ -535,34 +507,51 @@ function DatabasePage({ data, toast }) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  MAIN APP WRAPPER
+//  MAIN APP WRAPPER (WITH LOCAL STORAGE FIX)
 // ═══════════════════════════════════════════════════════
 export default function App() {
-  // 1. Check Local Storage when the app first loads
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('sparetrack_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  
+  const [user, setUser] = useState(null);
   const [page, setPage] = useState('dashboard');
   const [data, setData] = useState({ engineers: [], parts: [], requests: [], utilization: [], purchaseRequests: [] });
   const { toasts, toast } = useToasts();
 
-  // ... (Keep your existing useEffect here)
+  // 1. Load user from browser storage on startup
+  useEffect(() => {
+    const savedUser = localStorage.getItem('sparetrack_user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('sparetrack_user');
+      }
+    }
+  }, []);
 
-  // 2. Save to Local Storage when logging in
-  const handleLogin = acc => { 
+  // 2. Firebase Real-time Sync
+  useEffect(() => {
+    const collections = ['engineers', 'parts', 'requests', 'utilization', 'purchaseRequests'];
+    const unsubscribes = collections.map(col => 
+      onSnapshot(collection(db, col), (snapshot) => {
+        setData(prev => ({ ...prev, [col]: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) }));
+      })
+    );
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, []);
+
+  // 3. Login - Save user memory to browser
+  const handleLogin = (acc) => { 
     setUser(acc); 
     localStorage.setItem('sparetrack_user', JSON.stringify(acc));
     setPage('dashboard'); 
   };
   
-  // 3. Clear from Local Storage when logging out
+  // 4. Logout - Wipe memory
   const handleLogout = () => { 
     setUser(null); 
     localStorage.removeItem('sparetrack_user');
     setPage('dashboard'); 
   };
+
   if (!user) return <><style>{CSS}</style><LoginPage onLogin={handleLogin} /></>;
 
   const pageProps = { user, data, toast, setPage };
@@ -575,8 +564,7 @@ export default function App() {
         <main>
           {page === 'dashboard' && <Dashboard {...pageProps} />}
           {page === 'requests'  && <RequestsPage {...pageProps} />}
-          {page === 'database'  && <DatabasePage {...pageProps} />}
-          {/* Note: Additional pages like StockPage or UtilizationPage can be added following the same structure */}
+          {page === 'database'  && <DatabasePage data={data} toast={toast} />}
         </main>
       </div>
       <div className="toast-area">
