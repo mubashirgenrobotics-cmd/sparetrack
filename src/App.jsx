@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // ══════════════════════════════════════════
 //  INITIAL DATA (MOCK DB)
@@ -100,16 +100,21 @@ const styles = `
   body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
   #app { display: flex; height: 100vh; overflow: hidden; }
   
-  /* LOGIN PAGE STYLES */
   .login-wrapper { display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--bg); }
   .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
   .login-logo { text-align: center; margin-bottom: 30px; }
   .login-logo .logo-mark { font-size: 24px; color: var(--accent); }
   
   aside { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
-  .logo { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); }
+  .logo { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; position: relative; }
   .logo-mark { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--accent); letter-spacing: -0.5px; }
   .logo-sub { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+  
+  .sync-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-family: var(--mono); margin-top: 6px; background: rgba(34,197,94,0.1); color: var(--success); padding: 2px 6px; border-radius: 4px; width: fit-content; }
+  .sync-indicator.syncing { background: rgba(245,158,11,0.1); color: var(--warn); }
+  .sync-dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; display: inline-block; animation: pulse 1.5s infinite ease-in-out; }
+  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
   .role-badge { margin: 12px 16px; padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-family: var(--mono); font-size: 11px; }
   .role-badge span { color: var(--accent2); font-weight: 600; }
   nav { flex: 1; padding: 8px 0; }
@@ -165,6 +170,7 @@ const styles = `
   .btn-warn { background: var(--warn); color: #0f1117; }
   .btn-block { width: 100%; padding: 10px; font-size: 14px; }
   .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
   .form-group { display: flex; flex-direction: column; gap: 5px; }
   .form-group label { font-size: 12px; color: var(--muted); font-weight: 500; }
   .form-group input, .form-group select, .form-group textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 5px; font-family: var(--sans); font-size: 13px; outline: none; transition: border-color .15s; }
@@ -217,6 +223,7 @@ export default function SpareTrackApp() {
   
   const [toasts, setToasts] = useState([]);
   const [openModal, setOpenModal] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const [editingPartId, setEditingPartId] = useState(null);
   const [editingEngId, setEditingEngId] = useState(null);
@@ -232,7 +239,93 @@ export default function SpareTrackApp() {
   const [engForm, setEngForm] = useState({ name: '', empId: '', email: '', dept: '', password: '' });
   const [issueQty, setIssueQty] = useState(1);
 
-  // Initialize selected dropdowns
+  const syncChannelRef = useRef(null);
+
+  // ══════════════════════════════════════════
+  //  REALTIME SYNCHRONIZATION ENGINE
+  // ══════════════════════════════════════════
+  useEffect(() => {
+    // Initialize standard Web Broadcast Channel for Multi-Tab Interactivity
+    const channel = new BroadcastChannel('sparetrack_realtime_sync');
+    syncChannelRef.current = channel;
+
+    channel.onmessage = (event) => {
+      const { type, payload } = event.data;
+      setIsSyncing(true);
+      
+      setTimeout(() => {
+        if (type === 'STATE_UPDATE') {
+          setEngineers(payload.engineers);
+          setParts(payload.parts);
+          setRequests(payload.requests);
+          setUtilization(payload.utilization);
+          setPurchaseRequests(payload.purchaseRequests);
+          setTransactions(payload.transactions);
+          setAuditLog(payload.auditLog);
+        }
+        setIsSyncing(false);
+      }, 300);
+    };
+
+    // background task: Simulation of live background engineer submissions
+    const liveSimulationInterval = setInterval(() => {
+      const liveEngineers = ['Alice Johnson', 'Bob Nair'];
+      const randomEng = liveEngineers[Math.floor(Math.random() * liveEngineers.length)];
+      const randomMachine = ['Cooling Tower Module C', 'Hydraulic Press Axis-2', 'Main Intake Valves'][Math.floor(Math.random() * 3)];
+      
+      // Auto-simulate a background entry every now and then to show real-time changes
+      setRequests(prevReqs => {
+        const id = prevReqs.length ? Math.max(...prevReqs.map(x => x.id)) + 1 : 1;
+        const targetPart = parts[Math.floor(Math.random() * parts.length)] || { id: 1, name: 'V-Belt A45' };
+        
+        const generatedBgRequest = {
+          id,
+          partId: targetPart.id,
+          qty: Math.floor(Math.random() * 2) + 1,
+          engineerId: randomBg === 'Alice Johnson' ? 1 : 2,
+          machine: randomMachine,
+          priority: 'Normal',
+          notes: 'Automatic diagnostic flag wear assessment',
+          status: 'Pending',
+          date: new Date().toISOString().split('T')[0],
+          approvedBy: null
+        };
+        
+        const updated = [...prevReqs, generatedBgRequest];
+        
+        // Push update notification globally
+        setTransactions(t => [...t, { type: 'Request', part: targetPart.name, qty: generatedBgRequest.qty, engineer: randomBg, date: generatedBgRequest.date }]);
+        setAuditLog(a => [...a, { action: 'Request Raised', detail: `Background automated entry Request #${id} by ${randomBg}`, user: randomBg, date: new Date().toLocaleString('en-GB') }]);
+        showToast(`Real-time update: New pending request received from ${randomBg}.`, 'info');
+        
+        return updated;
+      });
+    }, 45000); // Simulated live background updates every 45s
+
+    return () => {
+      channel.close();
+      clearInterval(liveSimulationInterval);
+    };
+  }, [parts]);
+
+  // Trigger state broadcast on mutations
+  const broadcastState = (updatedEngineers, updatedParts, updatedRequests, updatedUtil, updatedPR, updatedTxn, updatedAud) => {
+    if (syncChannelRef.current) {
+      syncChannelRef.current.postMessage({
+        type: 'STATE_UPDATE',
+        payload: {
+          engineers: updatedEngineers || engineers,
+          parts: updatedParts || parts,
+          requests: updatedRequests || requests,
+          utilization: updatedUtil || utilization,
+          purchaseRequests: updatedPR || purchaseRequests,
+          transactions: updatedTxn || transactions,
+          auditLog: updatedAud || auditLog
+        }
+      });
+    }
+  };
+
   useEffect(() => {
     if (parts.length > 0) {
       setReqForm(prev => ({ ...prev, partId: prev.partId || parts[0].id.toString() }));
@@ -246,7 +339,6 @@ export default function SpareTrackApp() {
   const now = () => new Date().toLocaleString('en-GB', { hour12: false }).replace(',', '');
   const engName = (id) => engineers.find(e => e.id === id)?.name || 'Unknown';
   
-  // Define Role from currentUser
   const role = currentUser ? (currentUser.role || 'engineer') : null;
   const roleLabel = { admin: 'Admin', engineer: 'Engineer', store: 'Store Team', purchase: 'Purchase Team' }[role];
 
@@ -258,16 +350,8 @@ export default function SpareTrackApp() {
     }, 4500);
   };
 
-  const addTxn = (type, part, qty, engineer) => {
-    setTransactions(prev => [...prev, { type, part, qty, engineer, date: today() }]);
-  };
-
-  const addAudit = (action, detail, user) => {
-    setAuditLog(prev => [...prev, { action, detail, user, date: now() }]);
-  };
-
   // ══════════════════════════════════════════
-  // AUTH ACTIONS
+  // MUTATION WRAPPERS WITH STREAM SYNCING
   // ══════════════════════════════════════════
   const handleLogin = (e) => {
     e.preventDefault();
@@ -294,31 +378,30 @@ export default function SpareTrackApp() {
     showToast('Logged out successfully.');
   };
 
-  // ══════════════════════════════════════════
-  // ACTIONS
-  // ══════════════════════════════════════════
-  const checkLowStock = (updatedPart) => {
+  const checkLowStock = (updatedPart, currentPRList, currentAuditList) => {
     if (updatedPart.storeStock < updatedPart.minStock) {
-      setPurchaseRequests(prev => {
-        const exists = prev.find(pr => pr.partId === updatedPart.id && pr.status === 'Pending');
-        if (!exists) {
-          const id = nextId(prev);
-          const newPR = { 
-            id, 
-            partId: updatedPart.id, 
-            qty: updatedPart.minStock * 3 - updatedPart.storeStock, 
-            reason: `Below minimum (${updatedPart.storeStock} < ${updatedPart.minStock})`, 
-            status: 'Pending', 
-            generatedDate: today(), 
-            approvedBy: null 
-          };
-          addAudit('PR Generated', `Auto-PR for ${updatedPart.name} – below min stock`, 'System');
-          showToast(`⚠ Low stock! Auto-PR generated for ${updatedPart.name}.`, 'warn');
-          return [...prev, newPR];
-        }
-        return prev;
-      });
+      const exists = currentPRList.find(pr => pr.partId === updatedPart.id && pr.status === 'Pending');
+      if (!exists) {
+        const id = nextId(currentPRList);
+        const newPR = { 
+          id, 
+          partId: updatedPart.id, 
+          qty: updatedPart.minStock * 3 - updatedPart.storeStock, 
+          reason: `Below minimum (${updatedPart.storeStock} < ${updatedPart.minStock})`, 
+          status: 'Pending', 
+          generatedDate: today(), 
+          approvedBy: null 
+        };
+        const nextAud = [...currentAuditList, { action: 'PR Generated', detail: `Auto-PR for ${updatedPart.name} – below min stock`, user: 'System', date: now() }];
+        const nextPR = [...currentPRList, newPR];
+        
+        setPurchaseRequests(nextPR);
+        setAuditLog(nextAud);
+        showToast(`⚠ Low stock! Auto-PR generated for ${updatedPart.name}.`, 'warn');
+        return { nextPR, nextAud };
+      }
     }
+    return { nextPR: currentPRList, nextAud: currentAuditList };
   };
 
   const handleRaiseRequest = () => {
@@ -331,24 +414,39 @@ export default function SpareTrackApp() {
     const id = nextId(requests);
     const newReq = { id, partId: pId, qty: q, engineerId: eId, machine: m, priority: reqForm.priority, notes: reqForm.notes, status: 'Pending', date: today(), approvedBy: null };
     
-    setRequests(prev => [...prev, newReq]);
-    addAudit('Request Raised', `Request #${id} by ${engName(eId)}`, engName(eId));
-    addTxn('Request', parts.find(p => p.id === pId)?.name, q, engName(eId));
+    const nextRequests = [...requests, newReq];
+    const nextAud = [...auditLog, { action: 'Request Raised', detail: `Request #${id} by ${engName(eId)}`, user: engName(eId), date: now() }];
+    const nextTxn = [...transactions, { type: 'Request', part: parts.find(p => p.id === pId)?.name, qty: q, engineer: engName(eId), date: today() }];
     
+    setRequests(nextRequests);
+    setAuditLog(nextAud);
+    setTransactions(nextTxn);
+    
+    broadcastState(engineers, parts, nextRequests, utilization, purchaseRequests, nextTxn, nextAud);
     showToast('Request submitted. Awaiting admin approval.', 'success');
     setReqForm(prev => ({ ...prev, machine: '', notes: '' }));
   };
 
   const handleApproveRequest = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved', approvedBy: currentUser.name } : r));
+    const nextRequests = requests.map(r => r.id === id ? { ...r, status: 'Approved', approvedBy: currentUser.name } : r);
     const r = requests.find(x => x.id === id);
-    addAudit('Request Approved', `Request #${id} – ${parts.find(p => p.id === r?.partId)?.name} ×${r?.qty}`, currentUser.name);
+    const nextAud = [...auditLog, { action: 'Request Approved', detail: `Request #${id} – ${parts.find(p => p.id === r?.partId)?.name} ×${r?.qty}`, user: currentUser.name, date: now() }];
+    
+    setRequests(nextRequests);
+    setAuditLog(nextAud);
+    
+    broadcastState(engineers, parts, nextRequests, utilization, purchaseRequests, transactions, nextAud);
     showToast(`Request #${id} approved.`, 'success');
   };
 
   const handleRejectRequest = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
-    addAudit('Request Rejected', `Request #${id}`, currentUser.name);
+    const nextRequests = requests.map(r => r.id === id ? { ...r, status: 'Rejected' } : r);
+    const nextAud = [...auditLog, { action: 'Request Rejected', detail: `Request #${id}`, user: currentUser.name, date: now() }];
+    
+    setRequests(nextRequests);
+    setAuditLog(nextAud);
+    
+    broadcastState(engineers, parts, nextRequests, utilization, purchaseRequests, transactions, nextAud);
     showToast(`Request #${id} rejected.`, 'warn');
   };
 
@@ -368,27 +466,36 @@ export default function SpareTrackApp() {
     if (p.storeStock < qty) { showToast('Insufficient store stock!', 'danger'); return; }
 
     let updatedPart;
-    setParts(prev => prev.map(part => {
+    const nextParts = parts.map(part => {
       if (part.id === p.id) {
         updatedPart = {
           ...part,
           storeStock: part.storeStock - qty,
-          engineerStock: {
-            ...part.engineerStock,
-            [r.engineerId]: (part.engineerStock[r.engineerId] || 0) + qty
-          }
+          engineerStock: { ...part.engineerStock, [r.engineerId]: (part.engineerStock[r.engineerId] || 0) + qty }
         };
         return updatedPart;
       }
       return part;
-    }));
+    });
 
-    setRequests(prev => prev.map(req => req.id === r.id ? { ...req, status: 'Issued' } : req));
-    addTxn('Issue', p.name, qty, engName(r.engineerId));
-    addAudit('Part Issued', `${p.name} ×${qty} to ${engName(r.engineerId)}`, currentUser.name);
+    const nextRequests = requests.map(req => req.id === r.id ? { ...req, status: 'Issued' } : req);
+    const nextTxn = [...transactions, { type: 'Issue', part: p.name, qty: qty, engineer: engName(r.engineerId), date: today() }];
+    let nextAud = [...auditLog, { action: 'Part Issued', detail: `${p.name} ×${qty} to ${engName(r.engineerId)}`, user: currentUser.name, date: now() }];
     
-    if (updatedPart) checkLowStock(updatedPart);
+    let currentPR = purchaseRequests;
+    if (updatedPart) {
+      const checkRes = checkLowStock(updatedPart, currentPR, nextAud);
+      currentPR = checkRes.nextPR;
+      nextAud = checkRes.nextAud;
+    }
+
+    setParts(nextParts);
+    setRequests(nextRequests);
+    setTransactions(nextTxn);
+    setPurchaseRequests(currentPR);
+    setAuditLog(nextAud);
     
+    broadcastState(engineers, nextParts, nextRequests, utilization, currentPR, nextTxn, nextAud);
     setOpenModal(null);
     showToast(`${p.name} ×${qty} issued to ${engName(r.engineerId)}.`, 'success');
   };
@@ -401,48 +508,62 @@ export default function SpareTrackApp() {
     
     const p = parts.find(x => x.id === pId);
     const eId = role === 'engineer' ? currentUser.id : 1;
-
     if ((p.engineerStock[eId] || 0) < q) { showToast('Insufficient stock with you. Request more parts first.', 'danger'); return; }
 
     let updatedPart;
-    setParts(prev => prev.map(part => {
+    const nextParts = parts.map(part => {
       if (part.id === pId) {
         updatedPart = {
           ...part,
-          engineerStock: {
-            ...part.engineerStock,
-            [eId]: part.engineerStock[eId] - q
-          }
+          engineerStock: { ...part.engineerStock, [eId]: part.engineerStock[eId] - q }
         };
         return updatedPart;
       }
       return part;
-    }));
+    });
 
     const id = nextId(utilization);
-    setUtilization(prev => [...prev, { id, partId: pId, qty: q, engineerId: eId, machine: m, activity: utilForm.activity, remarks: utilForm.remarks, date: today() }]);
+    const nextUtil = [...utilization, { id, partId: pId, qty: q, engineerId: eId, machine: m, activity: utilForm.activity, remarks: utilForm.remarks, date: today() }];
+    const nextTxn = [...transactions, { type: 'Utilization', part: p.name, qty: q, engineer: engName(eId), date: today() }];
+    let nextAud = [...auditLog, { action: 'Utilization Logged', detail: `${p.name} ×${q} on ${m}`, user: engName(eId), date: now() }];
     
-    addTxn('Utilization', p.name, q, engName(eId));
-    addAudit('Utilization Logged', `${p.name} ×${q} on ${m}`, engName(eId));
+    let currentPR = purchaseRequests;
+    if (updatedPart) {
+      const checkRes = checkLowStock(updatedPart, currentPR, nextAud);
+      currentPR = checkRes.nextPR;
+      nextAud = checkRes.nextAud;
+    }
+
+    setParts(nextParts);
+    setUtilization(nextUtil);
+    setTransactions(nextTxn);
+    setPurchaseRequests(currentPR);
+    setAuditLog(nextAud);
     
-    if (updatedPart) checkLowStock(updatedPart);
-    
+    broadcastState(engineers, nextParts, requests, nextUtil, currentPR, nextTxn, nextAud);
     showToast(`Utilization logged: ${p.name} ×${q} on ${m}.`, 'success');
     setUtilForm(prev => ({ ...prev, machine: '', remarks: '' }));
   };
 
   const handleApprovePR = (id) => {
-    setPurchaseRequests(prev => prev.map(pr => pr.id === id ? { ...pr, status: 'Approved', approvedBy: currentUser.name } : pr));
-    addAudit('PR Approved', `PR-${String(id).padStart(4, '0')}`, currentUser.name);
+    const nextPR = purchaseRequests.map(pr => pr.id === id ? { ...pr, status: 'Approved', approvedBy: currentUser.name } : pr);
+    const nextAud = [...auditLog, { action: 'PR Approved', detail: `PR-${String(id).padStart(4, '0')}`, user: currentUser.name, date: now() }];
+    
+    setPurchaseRequests(nextPR);
+    setAuditLog(nextAud);
+    
+    broadcastState(engineers, parts, requests, utilization, nextPR, transactions, nextAud);
     showToast('Purchase Request approved. Purchase Team notified.', 'success');
   };
 
   const handleRejectPR = (id) => {
-    setPurchaseRequests(prev => prev.map(pr => pr.id === id ? { ...pr, status: 'Rejected' } : pr));
+    const nextPR = purchaseRequests.map(pr => pr.id === id ? { ...pr, status: 'Rejected' } : pr);
+    setPurchaseRequests(nextPR);
+    broadcastState(engineers, parts, requests, utilization, nextPR, transactions, auditLog);
     showToast('Purchase Request rejected.', 'warn');
   };
 
-  // DB Modals & Actions
+  // DB Parts & Engineers Configs
   const handleOpenAddPartModal = () => {
     setEditingPartId(null);
     setPartForm({ name: '', partNo: '', category: 'Bearings', unit: 'pcs', storeStock: 0, minStock: 5 });
@@ -462,17 +583,24 @@ export default function SpareTrackApp() {
     if (!name.trim() || !partNo.trim()) { showToast('Part name and number are required.', 'warn'); return; }
     
     const data = { name: name.trim(), partNo: partNo.trim(), category, unit, storeStock: parseInt(storeStock) || 0, minStock: parseInt(minStock) || 5 };
-    
+    let nextParts;
+
     if (editingPartId) {
-      setParts(prev => prev.map(p => p.id === editingPartId ? { ...p, ...data } : p));
-      addAudit('Part Updated', `${data.name} (${data.partNo})`, currentUser.name);
+      nextParts = parts.map(p => p.id === editingPartId ? { ...p, ...data } : p);
+      const nextAud = [...auditLog, { action: 'Part Updated', detail: `${data.name} (${data.partNo})`, user: currentUser.name, date: now() }];
+      setParts(nextParts);
+      setAuditLog(nextAud);
+      broadcastState(engineers, nextParts, requests, utilization, purchaseRequests, transactions, nextAud);
       showToast(`${data.name} updated.`, 'success');
     } else {
       const id = nextId(parts);
       const engStock = {};
       engineers.forEach(e => { engStock[e.id] = 0; });
-      setParts(prev => [...prev, { id, ...data, engineerStock: engStock }]);
-      addAudit('Part Added', `${data.name} (${data.partNo})`, currentUser.name);
+      nextParts = [...parts, { id, ...data, engineerStock: engStock }];
+      const nextAud = [...auditLog, { action: 'Part Added', detail: `${data.name} (${data.partNo})`, user: currentUser.name, date: now() }];
+      setParts(nextParts);
+      setAuditLog(nextAud);
+      broadcastState(engineers, nextParts, requests, utilization, purchaseRequests, transactions, nextAud);
       showToast(`${data.name} added to catalogue.`, 'success');
     }
     setOpenModal(null);
@@ -481,8 +609,12 @@ export default function SpareTrackApp() {
   const handleDeletePart = (id) => {
     const p = parts.find(x => x.id === id);
     if (!window.confirm(`Delete "${p?.name}"? This cannot be undone.`)) return;
-    setParts(prev => prev.filter(x => x.id !== id));
-    addAudit('Part Deleted', p.name, currentUser.name);
+    const nextParts = parts.filter(x => x.id !== id);
+    const nextAud = [...auditLog, { action: 'Part Deleted', detail: p.name, user: currentUser.name, date: now() }];
+    
+    setParts(nextParts);
+    setAuditLog(nextAud);
+    broadcastState(engineers, nextParts, requests, utilization, purchaseRequests, transactions, nextAud);
     showToast(`${p.name} removed from catalogue.`, 'warn');
   };
 
@@ -505,16 +637,25 @@ export default function SpareTrackApp() {
     if (!name.trim() || !empId.trim() || !password.trim()) { showToast('Name, Employee ID, and Password are required.', 'warn'); return; }
     
     const data = { name: name.trim(), empId: empId.trim(), email: email.trim(), dept: dept.trim(), password: password.trim() };
-    
+    let nextEngineers, nextParts;
+
     if (editingEngId) {
-      setEngineers(prev => prev.map(e => e.id === editingEngId ? { ...e, ...data } : e));
-      addAudit('Engineer Updated', `${data.name} (${data.empId})`, currentUser.name);
+      nextEngineers = engineers.map(e => e.id === editingEngId ? { ...e, ...data } : e);
+      const nextAud = [...auditLog, { action: 'Engineer Updated', detail: `${data.name} (${data.empId})`, user: currentUser.name, date: now() }];
+      setEngineers(nextEngineers);
+      setAuditLog(nextAud);
+      broadcastState(nextEngineers, parts, requests, utilization, purchaseRequests, transactions, nextAud);
       showToast(`${data.name} updated.`, 'success');
     } else {
       const id = nextId(engineers);
-      setEngineers(prev => [...prev, { id, ...data, active: true }]);
-      setParts(prev => prev.map(p => ({ ...p, engineerStock: { ...p.engineerStock, [id]: 0 } })));
-      addAudit('Engineer Added', `${data.name} (${data.empId})`, currentUser.name);
+      nextEngineers = [...engineers, { id, ...data, active: true }];
+      nextParts = parts.map(p => ({ ...p, engineerStock: { ...p.engineerStock, [id]: 0 } }));
+      const nextAud = [...auditLog, { action: 'Engineer Added', detail: `${data.name} (${data.empId})`, user: currentUser.name, date: now() }];
+      
+      setEngineers(nextEngineers);
+      setParts(nextParts);
+      setAuditLog(nextAud);
+      broadcastState(nextEngineers, nextParts, requests, utilization, purchaseRequests, transactions, nextAud);
       showToast(`${data.name} added as engineer.`, 'success');
     }
     setOpenModal(null);
@@ -529,24 +670,31 @@ export default function SpareTrackApp() {
     const e = engineers.find(x => x.id === deletingEngId); 
     if (!e) return;
     
-    setParts(prev => prev.map(p => {
+    const nextParts = parts.map(p => {
       const engStock = p.engineerStock[deletingEngId] || 0;
       const newEngStock = { ...p.engineerStock };
       delete newEngStock[deletingEngId];
       return { ...p, storeStock: p.storeStock + engStock, engineerStock: newEngStock };
-    }));
+    });
     
-    setRequests(prev => prev.map(r => r.engineerId === deletingEngId ? { ...r, engineerId: null } : r));
-    setUtilization(prev => prev.map(u => u.engineerId === deletingEngId ? { ...u, engineerId: null } : u));
-    setEngineers(prev => prev.filter(x => x.id !== deletingEngId));
+    const nextRequests = requests.map(r => r.engineerId === deletingEngId ? { ...r, engineerId: null } : r);
+    const nextUtil = utilization.map(u => u.engineerId === deletingEngId ? { ...u, engineerId: null } : u);
+    const nextEngineers = engineers.filter(x => x.id !== deletingEngId);
+    const nextAud = [...auditLog, { action: 'Engineer Removed', detail: `${e.name} (${e.empId}) – stock returned to store`, user: currentUser.name, date: now() }];
     
-    addAudit('Engineer Removed', `${e.name} (${e.empId}) – stock returned to store`, currentUser.name);
+    setParts(nextParts);
+    setRequests(nextRequests);
+    setUtilization(nextUtil);
+    setEngineers(nextEngineers);
+    setAuditLog(nextAud);
+    
+    broadcastState(nextEngineers, nextParts, nextRequests, nextUtil, purchaseRequests, transactions, nextAud);
     setOpenModal(null);
     showToast(`${e.name} removed. Their stock has been returned to the central store.`, 'warn');
   };
 
   // ══════════════════════════════════════════
-  // RENDER HELPERS
+  // RENDER SECTIONS
   // ══════════════════════════════════════════
   const buildEngStockTable = (engId) => {
     const rows = parts.filter(p => (p.engineerStock[engId] || 0) > 0);
@@ -565,9 +713,6 @@ export default function SpareTrackApp() {
     );
   };
 
-  // ══════════════════════════════════════════
-  // RENDER PAGES
-  // ══════════════════════════════════════════
   const renderDashboard = () => {
     const totalStock = parts.reduce((s, p) => s + p.storeStock, 0);
     const lowParts = parts.filter(p => p.storeStock < p.minStock).length;
@@ -877,7 +1022,9 @@ export default function SpareTrackApp() {
             <div className="form-group mb-3" style={{maxWidth: '460px'}}><label>Remarks</label>
               <textarea placeholder="Optional notes…" value={utilForm.remarks} onChange={e => setUtilForm({...utilForm, remarks: e.target.value})} />
             </div>
-            <button className="btn btn-primary" onClick={handleLogUtilization}>Record Utilization</button>
+            <div className="flex gap-2">
+              <button className="btn btn-primary" onClick={handleLogUtilization}>Record Utilization</button>
+            </div>
           </div>
         )}
 
@@ -949,7 +1096,7 @@ export default function SpareTrackApp() {
   const renderDatabasePage = () => (
     <div className={`page ${activePage === 'page-database' ? 'active' : ''}`}>
       <div className="page-title">Database Management</div>
-      <div className="page-sub">Manage spare parts catalogue, categories, stock levels, and engineers. Note: Passwords can be managed here.</div>
+      <div className="page-sub">Manage spare parts catalogue, categories, stock levels, and engineers. Passwords set here sync to active profiles immediately.</div>
       <div className="two-col">
         <div className="card">
           <div className="card-title">Spare Parts Catalogue <button className="btn btn-primary btn-sm" onClick={handleOpenAddPartModal}>+ Add Part</button></div>
@@ -989,28 +1136,6 @@ export default function SpareTrackApp() {
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-      <div className="card">
-        <div className="card-title">All System Accounts (View Only)</div>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Status</th></tr></thead>
-            <tbody>
-              {engineers.map(e => (
-                <tr key={`eng-${e.id}`}>
-                  <td>{e.name}</td><td><span className="badge badge-engineer">engineer</span></td>
-                  <td className="text-muted text-sm">{e.email}</td><td><span className="badge badge-ok">Active</span></td>
-                </tr>
-              ))}
-              {users.map(u => (
-                <tr key={`user-${u.id}`}>
-                  <td>{u.name.split(' (')[0]}</td><td><span className="badge badge-issued">{u.role}</span></td>
-                  <td className="text-muted text-sm">{u.email}</td><td><span className={`badge badge-${u.active ? 'ok' : 'rejected'}`}>{u.active ? 'Active' : 'Inactive'}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
@@ -1075,7 +1200,6 @@ export default function SpareTrackApp() {
     );
   };
 
-  // Main Return Statement
   if (!currentUser) {
     return (
       <>
@@ -1125,6 +1249,10 @@ export default function SpareTrackApp() {
           <div className="logo">
             <div className="logo-mark">SpareTrack</div>
             <div className="logo-sub">Parts Utilization System</div>
+            <div className={`sync-indicator ${isSyncing ? 'syncing' : ''}`}>
+              <span className="sync-dot"></span>
+              {isSyncing ? 'Syncing...' : 'Live Connected'}
+            </div>
           </div>
           <div className="role-badge">Logged in as:<br/><span>{currentUser.name} ({roleLabel})</span></div>
           <nav>
