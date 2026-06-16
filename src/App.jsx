@@ -4,14 +4,14 @@ import React, { useState, useEffect } from 'react';
 //  INITIAL DATA (MOCK DB)
 // ══════════════════════════════════════════
 const INITIAL_ENGINEERS = [
-  { id: 1, name: 'Alice Johnson', empId: 'ENG-001', email: 'alice@plant.com', dept: 'Mechanical', active: true },
-  { id: 2, name: 'Bob Nair', empId: 'ENG-002', email: 'bob@plant.com', dept: 'Electrical', active: true },
+  { id: 1, name: 'Alice Johnson', empId: 'ENG-001', email: 'alice@plant.com', dept: 'Mechanical', active: true, password: 'password123' },
+  { id: 2, name: 'Bob Nair', empId: 'ENG-002', email: 'bob@plant.com', dept: 'Electrical', active: true, password: 'password123' },
 ];
 
 const INITIAL_USERS = [
-  { id: 3, name: 'Charlie (Admin)', role: 'admin', email: 'charlie@plant.com', active: true },
-  { id: 4, name: 'Dave (Store)', role: 'store', email: 'dave@plant.com', active: true },
-  { id: 5, name: 'Eve (Purchase)', role: 'purchase', email: 'eve@plant.com', active: true },
+  { id: 3, name: 'Charlie (Admin)', role: 'admin', email: 'admin@plant.com', active: true, password: 'admin' },
+  { id: 4, name: 'Dave (Store)', role: 'store', email: 'store@plant.com', active: true, password: 'store' },
+  { id: 5, name: 'Eve (Purchase)', role: 'purchase', email: 'purchase@plant.com', active: true, password: 'purchase' },
 ];
 
 const INITIAL_PARTS = [
@@ -99,6 +99,13 @@ const styles = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
   #app { display: flex; height: 100vh; overflow: hidden; }
+  
+  /* LOGIN PAGE STYLES */
+  .login-wrapper { display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--bg); }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .login-logo { text-align: center; margin-bottom: 30px; }
+  .login-logo .logo-mark { font-size: 24px; color: var(--accent); }
+  
   aside { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
   .logo { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); }
   .logo-mark { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--accent); letter-spacing: -0.5px; }
@@ -112,9 +119,8 @@ const styles = `
   nav .nav-section { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; padding: 16px 16px 4px; }
   nav a .icon { font-size: 16px; width: 20px; text-align: center; }
   nav a .badge { margin-left: auto; background: var(--danger); color: white; font-size: 10px; font-family: var(--mono); padding: 1px 5px; border-radius: 10px; font-weight: 600; }
-  .role-switch { padding: 12px 16px; border-top: 1px solid var(--border); }
-  .role-switch label { font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block; }
-  .role-switch select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 4px; font-family: var(--sans); font-size: 12px; cursor: pointer; }
+  .bottom-actions { padding: 16px; border-top: 1px solid var(--border); }
+  
   main { flex: 1; overflow-y: auto; padding: 24px 28px; background: var(--bg); }
   .page { display: none; }
   .page.active { display: block; }
@@ -145,7 +151,7 @@ const styles = `
   .badge-ok { background: rgba(34,197,94,.12); color: var(--success); border: 1px solid rgba(34,197,94,.3); }
   .badge-critical { background: rgba(239,68,68,.2); color: #fca5a5; border: 1px solid rgba(239,68,68,.5); }
   .badge-engineer { background: rgba(168,85,247,.15); color: #c4b5fd; border: 1px solid rgba(168,85,247,.3); }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 5px; border: none; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .15s, transform .1s; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border-radius: 5px; border: none; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .15s, transform .1s; }
   .btn:active { transform: scale(.98); }
   .btn-primary { background: var(--accent); color: white; }
   .btn-primary:hover { opacity: .88; }
@@ -157,6 +163,7 @@ const styles = `
   .btn-ghost:hover { color: var(--text); background: var(--surface2); }
   .btn-sm { padding: 4px 10px; font-size: 12px; }
   .btn-warn { background: var(--warn); color: #0f1117; }
+  .btn-block { width: 100%; padding: 10px; font-size: 14px; }
   .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
   .form-group { display: flex; flex-direction: column; gap: 5px; }
   .form-group label { font-size: 12px; color: var(--muted); font-weight: 500; }
@@ -193,7 +200,11 @@ const styles = `
 `;
 
 export default function SpareTrackApp() {
-  const [role, setRole] = useState('admin');
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
   const [activePage, setActivePage] = useState('page-dashboard');
   const [engineers, setEngineers] = useState(INITIAL_ENGINEERS);
   const [users] = useState(INITIAL_USERS);
@@ -218,7 +229,7 @@ export default function SpareTrackApp() {
   const [reqForm, setReqForm] = useState({ partId: '', qty: 1, machine: '', priority: 'Normal', notes: '' });
   const [utilForm, setUtilForm] = useState({ partId: '', qty: 1, machine: '', activity: 'Preventive Maintenance', remarks: '' });
   const [partForm, setPartForm] = useState({ name: '', partNo: '', category: 'Bearings', unit: 'pcs', storeStock: 0, minStock: 5 });
-  const [engForm, setEngForm] = useState({ name: '', empId: '', email: '', dept: '' });
+  const [engForm, setEngForm] = useState({ name: '', empId: '', email: '', dept: '', password: '' });
   const [issueQty, setIssueQty] = useState(1);
 
   // Initialize selected dropdowns
@@ -234,6 +245,9 @@ export default function SpareTrackApp() {
   const today = () => new Date().toISOString().split('T')[0];
   const now = () => new Date().toLocaleString('en-GB', { hour12: false }).replace(',', '');
   const engName = (id) => engineers.find(e => e.id === id)?.name || 'Unknown';
+  
+  // Define Role from currentUser
+  const role = currentUser ? (currentUser.role || 'engineer') : null;
   const roleLabel = { admin: 'Admin', engineer: 'Engineer', store: 'Store Team', purchase: 'Purchase Team' }[role];
 
   const showToast = (msg, type = 'info') => {
@@ -252,6 +266,37 @@ export default function SpareTrackApp() {
     setAuditLog(prev => [...prev, { action, detail, user, date: now() }]);
   };
 
+  // ══════════════════════════════════════════
+  // AUTH ACTIONS
+  // ══════════════════════════════════════════
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const allAccounts = [...engineers.map(e => ({...e, role: 'engineer'})), ...users];
+    const foundUser = allAccounts.find(u => u.email === loginEmail && u.password === loginPassword);
+    
+    if (foundUser) {
+      if (!foundUser.active) {
+        showToast('Your account is deactivated.', 'danger');
+        return;
+      }
+      setCurrentUser(foundUser);
+      setActivePage('page-dashboard');
+      showToast(`Welcome back, ${foundUser.name.split(' ')[0]}!`, 'success');
+    } else {
+      showToast('Invalid email or password.', 'danger');
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    showToast('Logged out successfully.');
+  };
+
+  // ══════════════════════════════════════════
+  // ACTIONS
+  // ══════════════════════════════════════════
   const checkLowStock = (updatedPart) => {
     if (updatedPart.storeStock < updatedPart.minStock) {
       setPurchaseRequests(prev => {
@@ -267,7 +312,6 @@ export default function SpareTrackApp() {
             generatedDate: today(), 
             approvedBy: null 
           };
-          
           addAudit('PR Generated', `Auto-PR for ${updatedPart.name} – below min stock`, 'System');
           showToast(`⚠ Low stock! Auto-PR generated for ${updatedPart.name}.`, 'warn');
           return [...prev, newPR];
@@ -277,16 +321,13 @@ export default function SpareTrackApp() {
     }
   };
 
-  // ══════════════════════════════════════════
-  // ACTIONS
-  // ══════════════════════════════════════════
   const handleRaiseRequest = () => {
     const pId = parseInt(reqForm.partId);
     const q = parseInt(reqForm.qty);
     const m = reqForm.machine.trim();
     if (!m) { showToast('Enter the machine / equipment name.', 'warn'); return; }
     
-    const eId = role === 'engineer' ? 1 : 1; 
+    const eId = role === 'engineer' ? currentUser.id : 1; 
     const id = nextId(requests);
     const newReq = { id, partId: pId, qty: q, engineerId: eId, machine: m, priority: reqForm.priority, notes: reqForm.notes, status: 'Pending', date: today(), approvedBy: null };
     
@@ -299,15 +340,15 @@ export default function SpareTrackApp() {
   };
 
   const handleApproveRequest = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved', approvedBy: 'Charlie' } : r));
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved', approvedBy: currentUser.name } : r));
     const r = requests.find(x => x.id === id);
-    addAudit('Request Approved', `Request #${id} – ${parts.find(p => p.id === r?.partId)?.name} ×${r?.qty}`, 'Charlie (Admin)');
+    addAudit('Request Approved', `Request #${id} – ${parts.find(p => p.id === r?.partId)?.name} ×${r?.qty}`, currentUser.name);
     showToast(`Request #${id} approved.`, 'success');
   };
 
   const handleRejectRequest = (id) => {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
-    addAudit('Request Rejected', `Request #${id}`, 'Charlie (Admin)');
+    addAudit('Request Rejected', `Request #${id}`, currentUser.name);
     showToast(`Request #${id} rejected.`, 'warn');
   };
 
@@ -344,7 +385,7 @@ export default function SpareTrackApp() {
 
     setRequests(prev => prev.map(req => req.id === r.id ? { ...req, status: 'Issued' } : req));
     addTxn('Issue', p.name, qty, engName(r.engineerId));
-    addAudit('Part Issued', `${p.name} ×${qty} to ${engName(r.engineerId)}`, 'Dave (Store)');
+    addAudit('Part Issued', `${p.name} ×${qty} to ${engName(r.engineerId)}`, currentUser.name);
     
     if (updatedPart) checkLowStock(updatedPart);
     
@@ -359,7 +400,8 @@ export default function SpareTrackApp() {
     if (!m) { showToast('Enter the machine / product name.', 'warn'); return; }
     
     const p = parts.find(x => x.id === pId);
-    const eId = 1;
+    const eId = role === 'engineer' ? currentUser.id : 1;
+
     if ((p.engineerStock[eId] || 0) < q) { showToast('Insufficient stock with you. Request more parts first.', 'danger'); return; }
 
     let updatedPart;
@@ -390,8 +432,8 @@ export default function SpareTrackApp() {
   };
 
   const handleApprovePR = (id) => {
-    setPurchaseRequests(prev => prev.map(pr => pr.id === id ? { ...pr, status: 'Approved', approvedBy: 'Charlie' } : pr));
-    addAudit('PR Approved', `PR-${String(id).padStart(4, '0')}`, 'Charlie (Admin)');
+    setPurchaseRequests(prev => prev.map(pr => pr.id === id ? { ...pr, status: 'Approved', approvedBy: currentUser.name } : pr));
+    addAudit('PR Approved', `PR-${String(id).padStart(4, '0')}`, currentUser.name);
     showToast('Purchase Request approved. Purchase Team notified.', 'success');
   };
 
@@ -423,14 +465,14 @@ export default function SpareTrackApp() {
     
     if (editingPartId) {
       setParts(prev => prev.map(p => p.id === editingPartId ? { ...p, ...data } : p));
-      addAudit('Part Updated', `${data.name} (${data.partNo})`, 'Charlie (Admin)');
+      addAudit('Part Updated', `${data.name} (${data.partNo})`, currentUser.name);
       showToast(`${data.name} updated.`, 'success');
     } else {
       const id = nextId(parts);
       const engStock = {};
       engineers.forEach(e => { engStock[e.id] = 0; });
       setParts(prev => [...prev, { id, ...data, engineerStock: engStock }]);
-      addAudit('Part Added', `${data.name} (${data.partNo})`, 'Charlie (Admin)');
+      addAudit('Part Added', `${data.name} (${data.partNo})`, currentUser.name);
       showToast(`${data.name} added to catalogue.`, 'success');
     }
     setOpenModal(null);
@@ -440,13 +482,13 @@ export default function SpareTrackApp() {
     const p = parts.find(x => x.id === id);
     if (!window.confirm(`Delete "${p?.name}"? This cannot be undone.`)) return;
     setParts(prev => prev.filter(x => x.id !== id));
-    addAudit('Part Deleted', p.name, 'Charlie (Admin)');
+    addAudit('Part Deleted', p.name, currentUser.name);
     showToast(`${p.name} removed from catalogue.`, 'warn');
   };
 
   const handleOpenAddEngineerModal = () => {
     setEditingEngId(null);
-    setEngForm({ name: '', empId: '', email: '', dept: '' });
+    setEngForm({ name: '', empId: '', email: '', dept: '', password: '' });
     setOpenModal('modal-engineer');
   };
 
@@ -454,25 +496,25 @@ export default function SpareTrackApp() {
     const e = engineers.find(x => x.id === id); 
     if (!e) return;
     setEditingEngId(id);
-    setEngForm({ name: e.name, empId: e.empId, email: e.email, dept: e.dept });
+    setEngForm({ name: e.name, empId: e.empId, email: e.email, dept: e.dept, password: e.password || '' });
     setOpenModal('modal-engineer');
   };
 
   const handleSaveEngineer = () => {
-    const { name, empId, email, dept } = engForm;
-    if (!name.trim() || !empId.trim()) { showToast('Name and Employee ID are required.', 'warn'); return; }
+    const { name, empId, email, dept, password } = engForm;
+    if (!name.trim() || !empId.trim() || !password.trim()) { showToast('Name, Employee ID, and Password are required.', 'warn'); return; }
     
-    const data = { name: name.trim(), empId: empId.trim(), email: email.trim(), dept: dept.trim() };
+    const data = { name: name.trim(), empId: empId.trim(), email: email.trim(), dept: dept.trim(), password: password.trim() };
     
     if (editingEngId) {
       setEngineers(prev => prev.map(e => e.id === editingEngId ? { ...e, ...data } : e));
-      addAudit('Engineer Updated', `${data.name} (${data.empId})`, 'Charlie (Admin)');
+      addAudit('Engineer Updated', `${data.name} (${data.empId})`, currentUser.name);
       showToast(`${data.name} updated.`, 'success');
     } else {
       const id = nextId(engineers);
       setEngineers(prev => [...prev, { id, ...data, active: true }]);
       setParts(prev => prev.map(p => ({ ...p, engineerStock: { ...p.engineerStock, [id]: 0 } })));
-      addAudit('Engineer Added', `${data.name} (${data.empId})`, 'Charlie (Admin)');
+      addAudit('Engineer Added', `${data.name} (${data.empId})`, currentUser.name);
       showToast(`${data.name} added as engineer.`, 'success');
     }
     setOpenModal(null);
@@ -498,7 +540,7 @@ export default function SpareTrackApp() {
     setUtilization(prev => prev.map(u => u.engineerId === deletingEngId ? { ...u, engineerId: null } : u));
     setEngineers(prev => prev.filter(x => x.id !== deletingEngId));
     
-    addAudit('Engineer Removed', `${e.name} (${e.empId}) – stock returned to store`, 'Charlie (Admin)');
+    addAudit('Engineer Removed', `${e.name} (${e.empId}) – stock returned to store`, currentUser.name);
     setOpenModal(null);
     showToast(`${e.name} removed. Their stock has been returned to the central store.`, 'warn');
   };
@@ -533,7 +575,7 @@ export default function SpareTrackApp() {
     const pendingPR = purchaseRequests.filter(p => p.status === 'Pending').length;
 
     let subText, statGrid, content;
-    const eId = 1;
+    const eId = role === 'engineer' ? currentUser.id : null;
 
     if (role === 'engineer') {
       subText = 'Your current spare parts stock and recent activity.';
@@ -667,7 +709,7 @@ export default function SpareTrackApp() {
   const renderRequestsPage = () => {
     let filteredRequests = requests;
     if (reqFilter !== 'all') filteredRequests = filteredRequests.filter(r => r.status === reqFilter);
-    if (role === 'engineer') filteredRequests = filteredRequests.filter(r => r.engineerId === 1);
+    if (role === 'engineer') filteredRequests = filteredRequests.filter(r => r.engineerId === currentUser.id);
 
     return (
       <div className={`page ${activePage === 'page-requests' ? 'active' : ''}`}>
@@ -788,7 +830,7 @@ export default function SpareTrackApp() {
                       </td>
                       <td className="text-mono">{p.minStock}</td>
                       <td><span className={`badge badge-${isLow ? 'low' : 'ok'}`}>{isLow ? 'LOW' : 'OK'}</span></td>
-                      {role === 'engineer' ? <td className="text-mono">{p.engineerStock[1] || 0}</td> : engineers.map(e => <td key={e.id} className="text-mono">{p.engineerStock[e.id] || 0}</td>)}
+                      {role === 'engineer' ? <td className="text-mono">{p.engineerStock[currentUser.id] || 0}</td> : engineers.map(e => <td key={e.id} className="text-mono">{p.engineerStock[e.id] || 0}</td>)}
                     </tr>
                   );
                 })}
@@ -801,10 +843,10 @@ export default function SpareTrackApp() {
   };
 
   const renderUtilizationPage = () => {
-    const eId = role === 'engineer' ? 1 : null;
+    const eId = role === 'engineer' ? currentUser.id : null;
     const available = eId ? parts.filter(p => (p.engineerStock[eId] || 0) > 0) : parts;
     let tableRows = utilization;
-    if (role === 'engineer') tableRows = tableRows.filter(u => u.engineerId === 1);
+    if (role === 'engineer') tableRows = tableRows.filter(u => u.engineerId === currentUser.id);
 
     return (
       <div className={`page ${activePage === 'page-utilization' ? 'active' : ''}`}>
@@ -907,7 +949,7 @@ export default function SpareTrackApp() {
   const renderDatabasePage = () => (
     <div className={`page ${activePage === 'page-database' ? 'active' : ''}`}>
       <div className="page-title">Database Management</div>
-      <div className="page-sub">Manage spare parts catalogue, categories, stock levels, and engineers.</div>
+      <div className="page-sub">Manage spare parts catalogue, categories, stock levels, and engineers. Note: Passwords can be managed here.</div>
       <div className="two-col">
         <div className="card">
           <div className="card-title">Spare Parts Catalogue <button className="btn btn-primary btn-sm" onClick={handleOpenAddPartModal}>+ Add Part</button></div>
@@ -950,7 +992,7 @@ export default function SpareTrackApp() {
         </div>
       </div>
       <div className="card">
-        <div className="card-title">All Users</div>
+        <div className="card-title">All System Accounts (View Only)</div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Status</th></tr></thead>
@@ -1033,7 +1075,42 @@ export default function SpareTrackApp() {
     );
   };
 
-  // Modals JSX generators
+  // Main Return Statement
+  if (!currentUser) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: styles }} />
+        <div className="login-wrapper">
+          <div className="login-card">
+            <div className="login-logo">
+              <div className="logo-mark">SpareTrack</div>
+              <div className="logo-sub">Sign in to your account</div>
+            </div>
+            <form onSubmit={handleLogin}>
+              <div className="form-group" style={{marginBottom: '16px'}}>
+                <label>Email Address</label>
+                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="e.g. admin@plant.com" required />
+              </div>
+              <div className="form-group" style={{marginBottom: '24px'}}>
+                <label>Password</label>
+                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" required />
+              </div>
+              <button type="submit" className="btn btn-primary btn-block">Log In</button>
+            </form>
+            <div style={{marginTop: '20px', fontSize: '11px', color: 'var(--muted)', textAlign: 'center'}}>
+              <strong>Demo accounts:</strong><br/>
+              Admin: admin@plant.com / admin<br/>
+              Engineer: alice@plant.com / password123
+            </div>
+          </div>
+        </div>
+        <div id="toast-area">
+          {toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}
+        </div>
+      </>
+    );
+  }
+
   const issuingRequestData = requests.find(r => r.id === issuingRequestId);
   const issuingPartData = parts.find(p => p.id === issuingRequestData?.partId);
   const deletingEngData = engineers.find(e => e.id === deletingEngId);
@@ -1049,7 +1126,7 @@ export default function SpareTrackApp() {
             <div className="logo-mark">SpareTrack</div>
             <div className="logo-sub">Parts Utilization System</div>
           </div>
-          <div className="role-badge">Logged in as: <span>{roleLabel}</span></div>
+          <div className="role-badge">Logged in as:<br/><span>{currentUser.name} ({roleLabel})</span></div>
           <nav>
             {(NAV_CONFIG[role] || NAV_CONFIG.admin).map((item, idx) => {
               if (item.section) return <div key={idx} className="nav-section">{item.section}</div>;
@@ -1061,14 +1138,8 @@ export default function SpareTrackApp() {
               );
             })}
           </nav>
-          <div className="role-switch">
-            <label>Switch Role (Demo)</label>
-            <select value={role} onChange={e => { setRole(e.target.value); setActivePage('page-dashboard'); }}>
-              <option value="admin">Admin</option>
-              <option value="engineer">Engineer</option>
-              <option value="store">Store Team</option>
-              <option value="purchase">Purchase Team</option>
-            </select>
+          <div className="bottom-actions">
+            <button className="btn btn-ghost btn-block" onClick={handleLogout}>Log Out</button>
           </div>
         </aside>
 
@@ -1119,6 +1190,7 @@ export default function SpareTrackApp() {
             <div className="form-group"><label>Employee ID</label><input type="text" placeholder="e.g. ENG-007" value={engForm.empId} onChange={e => setEngForm({...engForm, empId: e.target.value})} /></div>
             <div className="form-group"><label>Email</label><input type="email" placeholder="e.g. john@plant.com" value={engForm.email} onChange={e => setEngForm({...engForm, email: e.target.value})} /></div>
             <div className="form-group"><label>Department</label><input type="text" placeholder="e.g. Mechanical" value={engForm.dept} onChange={e => setEngForm({...engForm, dept: e.target.value})} /></div>
+            <div className="form-group"><label>Password</label><input type="text" placeholder="Set user password" value={engForm.password} onChange={e => setEngForm({...engForm, password: e.target.value})} /></div>
           </div>
           <div className="modal-actions">
             <button className="btn btn-ghost" onClick={() => setOpenModal(null)}>Cancel</button>
