@@ -1,49 +1,64 @@
 import { useState, useEffect, useRef } from "react";
 import { db, storage } from "./firebase";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import SignatureCanvas from 'react-signature-canvas';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
+import { 
+  LayoutDashboard, Wrench, ClipboardCheck, Package, 
+  Users, Database, FileText, Settings, Search 
+} from "lucide-react";
 
 // ═══════════════════════════════════════════════════════
-//  STYLES
+//  STYLES (Enterprise Layout)
 // ═══════════════════════════════════════════════════════
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
-:root { --bg:#0f1117; --surface:#181c27; --surface2:#1e2335; --border:#2a3050; --accent:#3b82f6; --accent2:#f59e0b; --danger:#ef4444; --success:#22c55e; --text:#e2e8f0; --muted:#64748b; --sans:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace; }
-*{box-sizing:border-box;margin:0;padding:0} body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;height:100vh;overflow:hidden;}
-.app{display:flex;height:100vh;}
-aside{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
-main{flex:1;overflow-y:auto;padding:24px 32px;}
-.logo{padding:20px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent);}
-nav button{display:block;width:100%;text-align:left;padding:12px 20px;background:none;border:none;color:var(--muted);cursor:pointer;border-left:3px solid transparent;}
-nav button:hover, nav button.active{background:var(--surface2);color:var(--text);border-left-color:var(--accent);}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;margin-bottom:24px;}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
-.form-group label{font-size:12px;color:var(--muted);text-transform:uppercase;}
-.form-group input, .form-group select, .form-group textarea{background:var(--surface2);border:1px solid var(--border);color:white;padding:10px;border-radius:6px;font-family:var(--sans);}
-table{width:100%;border-collapse:collapse;} th,td{padding:12px;text-align:left;border-bottom:1px solid var(--border);} th{color:var(--muted);font-size:12px;text-transform:uppercase;}
-.badge{padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;}
-.badge.pending{background:rgba(245,158,11,0.2);color:#fbbf24;} .badge.completed{background:rgba(34,197,94,0.2);color:#4ade80;}
-.btn{background:var(--accent);color:white;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;}
-.btn-success{background:var(--success);}
-.file-upload{border:2px dashed var(--border);padding:20px;text-align:center;border-radius:6px;cursor:pointer;background:var(--surface2);}
-.sig-canvas{border:1px solid var(--border);background:var(--surface2);border-radius:6px;width:100%;height:150px;margin-bottom:10px;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root { 
+  --bg: #0f111a; --surface: #1a1d2d; --surface-hover: #23273b; --border: #2e344f; 
+  --accent: #3b82f6; --accent-hover: #2563eb; --warn: #f59e0b; --success: #10b981; --danger: #ef4444; 
+  --text: #f8fafc; --muted: #94a3b8; --font: 'Inter', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font); }
+body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; font-size: 14px; }
+.app-layout { display: flex; height: 100vh; }
+aside { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.brand { padding: 24px 20px; font-size: 18px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.nav-menu { padding: 12px 0; flex: 1; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 24px; color: var(--muted); background: none; border: none; cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.2s; }
+.nav-item:hover, .nav-item.active { color: var(--text); background: var(--surface-hover); border-left-color: var(--accent); }
+main { flex: 1; overflow-y: auto; padding: 32px 40px; }
+.header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+.page-title { font-size: 24px; font-weight: 600; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
+.grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--text); display:flex; justify-content:space-between; align-items:center; }
+.stat-box { display: flex; flex-direction: column; gap: 8px; }
+.stat-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 32px; font-weight: 700; color: var(--text); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px 16px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+td { padding: 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+tr:hover td { background: var(--surface-hover); }
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.b-pending { background: rgba(245, 158, 11, 0.15); color: var(--warn); border: 1px solid rgba(245, 158, 11, 0.3); }
+.b-completed { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
+.b-assigned { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
+.select-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; outline: none; }
 `;
 
 // ═══════════════════════════════════════════════════════
-//  APP COMPONENT (Allows switching roles for testing)
+//  MAIN APP SHELL
 // ═══════════════════════════════════════════════════════
 export default function App() {
-  // Toggle between 'admin' and 'engineer' to test both views!
-  const [user, setUser] = useState({ role: 'engineer', name: 'Alice Johnson', engineerId: 'eng-1' }); 
-  const [page, setPage] = useState('complaints');
-  const [data, setData] = useState({ tickets: [], products: [], parts: [], users: [] });
+  const [user, setUser] = useState({ role: 'admin', name: 'Admin Hub' }); // Forced for testing
+  const [page, setPage] = useState('dashboard');
+  const [data, setData] = useState({ tickets: [], products: [], inspections: [], parts: [] });
 
   useEffect(() => {
-    const cols = ['tickets', 'products', 'parts', 'users'];
+    const cols = ['tickets', 'products', 'inspections', 'parts'];
     const unsubs = cols.map(col => 
       onSnapshot(collection(db, col), (snap) => {
         setData(prev => ({ ...prev, [col]: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
@@ -55,25 +70,25 @@ export default function App() {
   return (
     <>
       <style>{CSS}</style>
-      <div className="app">
+      <div className="app-layout">
         <aside>
-          <div className="logo">ServiceManager</div>
-          <div style={{padding:'10px 20px', fontSize:12, color:'var(--warn)'}}>Logged in as: {user.role.toUpperCase()}</div>
-          <nav>
-            <button className={page==='complaints'?'active':''} onClick={()=>setPage('complaints')}>
-              {user.role === 'admin' ? 'All Complaints' : 'My Service Tickets'}
-            </button>
-            {/* Quick role switcher for testing */}
-            <div style={{marginTop: 50, padding: 20, borderTop: '1px solid var(--border)'}}>
-              <p style={{fontSize: 10, color: 'var(--muted)', marginBottom: 10}}>TESTING SWITCHER</p>
-              <button onClick={()=>setUser({role:'admin', name:'Admin'})}>Switch to Admin</button>
-              <button onClick={()=>setUser({role:'engineer', name:'Alice', engineerId:'eng-1'})}>Switch to Engineer</button>
-            </div>
-          </nav>
+          <div className="brand"><Wrench size={24} /> ServiceManager</div>
+          <div className="nav-menu">
+            <div style={{padding: '0 24px', fontSize: 11, fontWeight: 600, color: 'var(--muted)', margin: '16px 0 8px', textTransform:'uppercase'}}>Management</div>
+            <button className={`nav-item ${page==='dashboard'?'active':''}`} onClick={()=>setPage('dashboard')}><LayoutDashboard size={18}/> Dashboard</button>
+            <button className={`nav-item ${page==='complaints'?'active':''}`} onClick={()=>setPage('complaints')}><FileText size={18}/> Complaints & Service</button>
+            <button className={`nav-item ${page==='inspections'?'active':''}`} onClick={()=>setPage('inspections')}><ClipboardCheck size={18}/> Inspections</button>
+            
+            <div style={{padding: '0 24px', fontSize: 11, fontWeight: 600, color: 'var(--muted)', margin: '24px 0 8px', textTransform:'uppercase'}}>Inventory & Admin</div>
+            <button className={`nav-item ${page==='store'?'active':''}`} onClick={()=>setPage('store')}><Package size={18}/> Maintenance Store</button>
+            <button className={`nav-item ${page==='database'?'active':''}`} onClick={()=>setPage('database')}><Database size={18}/> Master Database</button>
+          </div>
         </aside>
+
         <main>
-          {page === 'complaints' && user.role === 'admin' && <AdminComplaints data={data} />}
-          {page === 'complaints' && user.role === 'engineer' && <EngineerWorkflow data={data} user={user} />}
+          {page === 'dashboard' && <AdminDashboard data={data} />}
+          {page === 'complaints' && <ComplaintRegistry data={data} />}
+          {/* We will build Inspections and Store in Phase 2 & 3 */}
         </main>
       </div>
     </>
@@ -81,236 +96,118 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  ADMIN: REGISTER COMPLAINT (WITH PHOTO UPLOAD)
+//  ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════
-function AdminComplaints({ data }) {
-  const [view, setView] = useState('list');
-  const [form, setForm] = useState({ productId: '', reportedProblem: '' });
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
+function AdminDashboard({ data }) {
+  // Service Metrics
+  const srvTotal = data.tickets.length;
+  const srvPending = data.tickets.filter(t => t.status === 'Pending' || t.status === 'Assigned').length;
+  const srvCompleted = data.tickets.filter(t => t.status === 'Completed').length;
+  
+  // Inspection Metrics
+  const inspTotal = data.inspections.length;
+  const inspPending = data.inspections.filter(i => i.status === 'Pending').length;
 
-  const submitComplaint = async () => {
-    setUploading(true);
-    const ticketId = `SRV-${Math.floor(Math.random() * 100000)}`;
-    let photoUrl = null;
-
-    // 1. Upload Photo to Firebase Storage
-    if (file) {
-      const storageRef = ref(storage, `complaints/${ticketId}/${file.name}`);
-      await uploadBytes(storageRef, file);
-      photoUrl = await getDownloadURL(storageRef);
-    }
-
-    // 2. Save Ticket to Firestore
-    await addDoc(collection(db, "tickets"), {
-      ticketId,
-      productId: form.productId,
-      reportedProblem: form.reportedProblem,
-      preServicePhotoUrl: photoUrl, // Save the image link!
-      status: 'Pending',
-      date: new Date().toISOString().split('T')[0],
-      assignedEngineerId: 'eng-1' // Hardcoded for demo purposes
-    });
-    
-    setUploading(false);
-    setView('list');
-  };
-
-  if (view === 'new') return (
-    <div>
-      <button onClick={() => setView('list')} className="btn" style={{background:'transparent', color:'var(--accent)', marginBottom: 20}}>← Back to List</button>
-      <div className="card">
-        <h2>Register New Complaint</h2>
-        <div className="form-group" style={{marginTop: 20}}>
-          <label>Select Product</label>
-          <select onChange={(e) => setForm({...form, productId: e.target.value})} value={form.productId}>
-            <option value="">-- Select Product --</option>
-            {data.products.map(p => <option key={p.id} value={p.id}>{p.name} - {p.customerName}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Reported Problem</label>
-          <textarea rows="4" onChange={e => setForm({...form, reportedProblem: e.target.value})}></textarea>
-        </div>
-        
-        {/* PHOTO UPLOAD UI */}
-        <div className="form-group">
-          <label>Upload Pre-Service Photo</label>
-          <div className="file-upload">
-            <input type="file" onChange={(e) => setFile(e.target.files[0])} accept="image/*" />
-            {file && <p style={{marginTop:10, color:'var(--success)'}}>Selected: {file.name}</p>}
-          </div>
-        </div>
-
-        <button className="btn" onClick={submitComplaint} disabled={uploading}>
-          {uploading ? 'Uploading & Submitting...' : 'Submit Complaint'}
-        </button>
-      </div>
-    </div>
-  );
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const prodDetails = data.products.find(p => p.id === selectedProduct);
 
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom: 20}}>
-        <h2>All Complaints</h2>
-        <button className="btn" onClick={() => setView('new')}>+ Register Complaint</button>
+      <div className="header-flex">
+        <h1 className="page-title">Command Center</h1>
+        <select className="select-input" defaultValue="month">
+          <option value="month">This Month</option>
+          <option value="quarter">This Quarter</option>
+          <option value="year">This Year</option>
+        </select>
       </div>
-      <div className="card">
-        <table>
-          <thead><tr><th>Ticket</th><th>Problem</th><th>Photo</th><th>Status</th></tr></thead>
-          <tbody>
-            {data.tickets.map(t => (
-              <tr key={t.id}>
-                <td>{t.ticketId}</td>
-                <td>{t.reportedProblem}</td>
-                <td>{t.preServicePhotoUrl ? <a href={t.preServicePhotoUrl} target="_blank" style={{color:'var(--accent)'}}>View Photo</a> : 'No Photo'}</td>
-                <td><span className={`badge ${t.status.toLowerCase()}`}>{t.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* KPI GRID */}
+      <div className="grid-4">
+        <div className="card stat-box">
+          <span className="stat-label">Total Complaints</span>
+          <span className="stat-value">{srvTotal}</span>
+        </div>
+        <div className="card stat-box">
+          <span className="stat-label" style={{color:'var(--warn)'}}>Pending Services</span>
+          <span className="stat-value">{srvPending}</span>
+        </div>
+        <div className="card stat-box">
+          <span className="stat-label" style={{color:'var(--success)'}}>Completed Services</span>
+          <span className="stat-value">{srvCompleted}</span>
+        </div>
+        <div className="card stat-box">
+          <span className="stat-label" style={{color:'var(--accent)'}}>Pending Inspections</span>
+          <span className="stat-value">{inspPending} / {inspTotal}</span>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        {/* RECENT COMPLAINTS TABLE */}
+        <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
+          <div className="card-title">Recent Complaints</div>
+          <table>
+            <thead><tr><th>Ticket ID</th><th>Product</th><th>Status</th><th>Engineer</th></tr></thead>
+            <tbody>
+              {data.tickets.slice(0, 5).map(t => {
+                const p = data.products.find(x => x.id === t.productId);
+                return (
+                  <tr key={t.id}>
+                    <td style={{fontFamily:'var(--mono)', fontWeight:600}}>{t.ticketId}</td>
+                    <td>{p?.category || 'Unknown'}</td>
+                    <td><span className={`badge b-${t.status.toLowerCase()}`}>{t.status}</span></td>
+                    <td>{t.assignedEngineer || 'Unassigned'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* PRODUCT DETAILS LOOKUP */}
+        <div className="card">
+          <div className="card-title">Product Lookup</div>
+          <select 
+            className="select-input" 
+            style={{width: '100%', marginBottom: 20}}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+            value={selectedProduct}
+          >
+            <option value="">Select a Product...</option>
+            {data.products.map(p => <option key={p.id} value={p.id}>{p.serialNo} - {p.customerName}</option>)}
+          </select>
+
+          {prodDetails ? (
+            <div style={{display:'flex', flexDirection:'column', gap:'12px', background:'var(--bg)', padding:'16px', borderRadius:'8px'}}>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Customer:</span> <strong>{prodDetails.customerName}</strong></div>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Category:</span> <strong>{prodDetails.category}</strong></div>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Project:</span> <strong>{prodDetails.project}</strong></div>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Warranty:</span> <strong style={{color:'var(--success)'}}>{prodDetails.warrantyStatus}</strong></div>
+              <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Zone Eng:</span> <strong>{prodDetails.zoneEngineerId}</strong></div>
+            </div>
+          ) : (
+            <div style={{textAlign:'center', color:'var(--muted)', padding:'20px 0'}}>Select a product to view details.</div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════
-//  ENGINEER: CLOSING WORKFLOW & SIGNATURE
+//  COMPLAINT REGISTRY (Shell for Phase 2)
 // ═══════════════════════════════════════════════════════
-function EngineerWorkflow({ data, user }) {
-  const [activeTicket, setActiveTicket] = useState(null);
-  const [form, setForm] = useState({ identifiedIssue: '', actionTaken: '', partId: '', qty: 0 });
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  
-  const sigCanvas = useRef({}); // Reference for the signature pad
-  const reportRef = useRef(null); // Reference for PDF generation
-
-  const myTickets = data.tickets.filter(t => t.assignedEngineerId === user.engineerId);
-
-  const completeTicket = async () => {
-    setUploading(true);
-    let photoUrl = null;
-
-    // 1. Upload After-Service Photo
-    if (file) {
-      const storageRef = ref(storage, `repairs/${activeTicket.ticketId}/${file.name}`);
-      await uploadBytes(storageRef, file);
-      photoUrl = await getDownloadURL(storageRef);
-    }
-
-    // 2. Get Signature Image Data
-    const signatureData = sigCanvas.current.isEmpty() ? null : sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-
-    // 3. Update Ticket in Firestore
-    await updateDoc(doc(db, "tickets", activeTicket.id), {
-      status: 'Completed',
-      identifiedIssue: form.identifiedIssue,
-      actionTaken: form.actionTaken,
-      spareUsed: form.partId ? { partId: form.partId, qty: form.qty } : null,
-      postServicePhotoUrl: photoUrl,
-      customerSignature: signatureData,
-      completedDate: new Date().toISOString().split('T')[0]
-    });
-
-    // 4. Update Spare Part Inventory (if a part was used)
-    if (form.partId && form.qty > 0) {
-      const part = data.parts.find(p => p.id === form.partId);
-      if (part) {
-        await updateDoc(doc(db, "parts", part.id), {
-          storeStock: Number(part.storeStock) - Number(form.qty)
-        });
-      }
-    }
-
-    setUploading(false);
-    setActiveTicket(null); // Go back to list
-  };
-
-  const generatePDF = () => {
-    html2canvas(reportRef.current).then((canvas) => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${activeTicket.ticketId}_ServiceReport.pdf`);
-    });
-  };
-
-  if (activeTicket) return (
-    <div ref={reportRef} style={{background: 'var(--bg)', padding: 20}}>
-      <button onClick={() => setActiveTicket(null)} className="btn" style={{marginBottom: 20}}>← Back to Tasks</button>
-      
-      <div className="card">
-        <h2 style={{color:'var(--accent)', marginBottom: 20}}>Service Report: {activeTicket.ticketId}</h2>
-        
-        {/* Read-Only Admin Data */}
-        <div style={{background:'var(--surface2)', padding:16, borderRadius:8, marginBottom:20}}>
-          <p><strong>Reported Problem:</strong> {activeTicket.reportedProblem}</p>
-          {activeTicket.preServicePhotoUrl && <img src={activeTicket.preServicePhotoUrl} alt="Pre-Service" style={{maxHeight: 150, marginTop:10, borderRadius: 6}} />}
-        </div>
-
-        {/* Engineer Input */}
-        <div className="form-group"><label>Identified Issue</label><input onChange={e=>setForm({...form, identifiedIssue: e.target.value})} /></div>
-        <div className="form-group"><label>Action Taken</label><textarea onChange={e=>setForm({...form, actionTaken: e.target.value})}></textarea></div>
-        
-        <div className="form-grid" style={{background:'var(--surface2)', padding:16, borderRadius:8, marginBottom:20}}>
-          <div className="form-group">
-            <label>Spare Part Used (Optional)</label>
-            <select onChange={e=>setForm({...form, partId: e.target.value})}>
-              <option value="">None</option>
-              {data.parts.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.storeStock})</option>)}
-            </select>
-          </div>
-          <div className="form-group"><label>Quantity Used</label><input type="number" onChange={e=>setForm({...form, qty: e.target.value})} /></div>
-        </div>
-
-        <div className="form-group">
-          <label>Upload After-Service Photo</label>
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-        </div>
-
-        {/* Customer Signature Pad */}
-        <div className="form-group" style={{marginTop: 30}}>
-          <label style={{color:'var(--warn)'}}>Customer Signature</label>
-          <SignatureCanvas ref={sigCanvas} penColor='white' canvasProps={{className: 'sig-canvas'}} />
-          <button onClick={() => sigCanvas.current.clear()} style={{background:'none', border:'none', color:'var(--muted)', cursor:'pointer'}}>Clear Signature</button>
-        </div>
-
-        <div style={{display:'flex', gap: 10, marginTop: 20}}>
-          <button className="btn btn-success" onClick={completeTicket} disabled={uploading}>
-            {uploading ? 'Processing...' : 'Complete Service & Save'}
-          </button>
-          <button className="btn" onClick={generatePDF}>Download PDF Report</button>
-        </div>
-      </div>
-    </div>
-  );
-
+function ComplaintRegistry({ data }) {
   return (
     <div>
-      <h2>My Tasks</h2>
+      <div className="header-flex">
+        <h1 className="page-title">Complaint & Service Registry</h1>
+        <button style={{background:'var(--accent)', color:'white', border:'none', padding:'10px 16px', borderRadius:'6px', fontWeight:600, cursor:'pointer'}}>
+          + Register Complaint
+        </button>
+      </div>
       <div className="card">
-        <table>
-          <thead><tr><th>Ticket</th><th>Problem</th><th>Status</th><th>Action</th></tr></thead>
-          <tbody>
-            {myTickets.map(t => (
-              <tr key={t.id}>
-                <td>{t.ticketId}</td>
-                <td>{t.reportedProblem}</td>
-                <td><span className={`badge ${t.status.toLowerCase()}`}>{t.status}</span></td>
-                <td>
-                  {t.status === 'Pending' ? (
-                    <button className="btn" onClick={() => setActiveTicket(t)}>Start Service</button>
-                  ) : (
-                    <span style={{color:'var(--success)'}}>Completed ✓</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+         <p style={{color: 'var(--muted)'}}>Complaint list and filtering system will be rendered here.</p>
       </div>
     </div>
   );
