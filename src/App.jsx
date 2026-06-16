@@ -41,6 +41,7 @@ main { flex: 1; overflow-y: auto; padding: 32px 40px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 32px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+.grid-split { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
 .card-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--text); display:flex; justify-content:space-between; align-items:center; }
 .stat-box { display: flex; flex-direction: column; gap: 8px; }
@@ -109,18 +110,44 @@ export default function App() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  ADMIN DASHBOARD (Tri-Window Layout with Analytics)
+//  ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════
 function AdminDashboard({ data }) {
-  const [activeWindow, setActiveWindow] = useState('analytics'); // 'service', 'inspection', or 'analytics'
-  const [selectedProduct, setSelectedProduct] = useState("");
+  // Default window is now 'service'
+  const [activeWindow, setActiveWindow] = useState('service'); 
   const [engFilter, setEngFilter] = useState("All");
-  
-  const prodDetails = data.products.find(p => p.id === selectedProduct);
 
-  // --- DATA PROCESSING FOR ANALYTICS ---
-  
-  // 1. Engineer Performance Data
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899'];
+
+  // ─── 1. DATA PROCESSING: SERVICE ──────────────────────────────
+  const srvTotal = data.tickets.length;
+  const srvPending = data.tickets.filter(t => t.status === 'Pending' || t.status === 'Assigned').length;
+  const srvCompleted = data.tickets.filter(t => t.status === 'Completed').length;
+
+  const serviceContractStats = {};
+  data.tickets.forEach(t => {
+    const p = data.products.find(x => x.id === t.productId);
+    // Assume field is 'warrantyStatus' or 'contractType', fallback to 'O&M' if missing
+    const contract = p?.warrantyStatus || p?.contractType || 'O&M'; 
+    if (!serviceContractStats[contract]) serviceContractStats[contract] = { name: contract, value: 0 };
+    serviceContractStats[contract].value += 1;
+  });
+  const servicePieData = Object.values(serviceContractStats);
+
+  // ─── 2. DATA PROCESSING: INSPECTION ───────────────────────────
+  const inspTotal = data.inspections.length;
+  const inspPending = data.inspections.filter(i => i.status === 'Pending').length;
+  const inspCompleted = data.inspections.filter(i => i.status === 'Completed').length;
+
+  const inspCategoryStats = {};
+  data.inspections.forEach(i => {
+    const type = i.type || 'Periodic'; // Fallback if type isn't set yet
+    if (!inspCategoryStats[type]) inspCategoryStats[type] = { name: type, value: 0 };
+    inspCategoryStats[type].value += 1;
+  });
+  const inspPieData = Object.values(inspCategoryStats);
+
+  // ─── 3. DATA PROCESSING: ANALYTICS ────────────────────────────
   const engStatsMap = {};
   data.tickets.forEach(t => {
     const eng = t.assignedEngineer || 'Unassigned';
@@ -130,12 +157,8 @@ function AdminDashboard({ data }) {
     else engStatsMap[eng].Pending += 1;
   });
   const engineerData = Object.values(engStatsMap);
+  const engPieData = engineerData.map(e => ({ name: e.name, value: e.Total }));
 
-  // 2. Engineer Pie Chart Data (Based on selected filter)
-  const pieData = engineerData.map(e => ({ name: e.name, value: e.Total }));
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-  // 3. Project Distribution Data
   const projectStatsMap = {};
   data.tickets.forEach(t => {
     const prod = data.products.find(p => p.id === t.productId);
@@ -145,7 +168,7 @@ function AdminDashboard({ data }) {
   });
   const projectData = Object.values(projectStatsMap);
 
-  // --- RENDER ---
+  // ─── RENDER ───────────────────────────────────────────────────
   return (
     <div>
       <div className="header-flex">
@@ -158,60 +181,151 @@ function AdminDashboard({ data }) {
       </div>
 
       <div className="dash-tabs">
-        <button className={`dash-tab ${activeWindow === 'analytics' ? 'active' : ''}`} onClick={() => setActiveWindow('analytics')}><PieChartIcon size={18}/> Analytics</button>
         <button className={`dash-tab ${activeWindow === 'service' ? 'active' : ''}`} onClick={() => setActiveWindow('service')}><Wrench size={18}/> Services</button>
         <button className={`dash-tab ${activeWindow === 'inspection' ? 'active' : ''}`} onClick={() => setActiveWindow('inspection')}><ClipboardCheck size={18}/> Inspections</button>
+        <button className={`dash-tab ${activeWindow === 'analytics' ? 'active' : ''}`} onClick={() => setActiveWindow('analytics')}><PieChartIcon size={18}/> Analytics</button>
       </div>
 
-      {/* 🟣 WINDOW 1: ANALYTICS & REPORTS */}
+      {/* 🟢 WINDOW 1: SERVICES (Now 1st) */}
+      {activeWindow === 'service' && (
+        <div className="animate-fade-in">
+          <div className="grid-3">
+            <div className="card stat-box"><span className="stat-label">Total Complaints</span><span className="stat-value">{srvTotal}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--warn)'}}>Pending / Assigned</span><span className="stat-value" style={{color:'var(--warn)'}}>{srvPending}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--success)'}}>Completed Services</span><span className="stat-value" style={{color:'var(--success)'}}>{srvCompleted}</span></div>
+          </div>
+          
+          <div className="grid-split">
+            <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
+              <div className="card-title">Recent Complaints</div>
+              <table>
+                <thead><tr><th>Ticket ID</th><th>Category</th><th>Status</th><th>Engineer</th></tr></thead>
+                <tbody>
+                  {data.tickets.slice(0, 5).map(t => {
+                    const p = data.products.find(x => x.id === t.productId);
+                    return <tr key={t.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{t.ticketId}</td><td>{p?.category || 'Unknown'}</td><td><span className={`badge b-${t.status.toLowerCase()}`}>{t.status}</span></td><td>{t.assignedEngineer || 'Unassigned'}</td></tr>
+                  })}
+                  {data.tickets.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', color:'var(--muted)'}}>No recent complaints</td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="card">
+              <div className="card-title">Contract Distribution</div>
+              <div style={{ width: '100%', height: 250 }}>
+                {servicePieData.length > 0 ? (
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={servicePieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value" label>
+                        {servicePieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                   <div style={{textAlign:'center', color:'var(--muted)', marginTop: 50}}>Not enough data to display chart.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔵 WINDOW 2: INSPECTIONS (Now 2nd) */}
+      {activeWindow === 'inspection' && (
+        <div className="animate-fade-in">
+          <div className="grid-3">
+            <div className="card stat-box"><span className="stat-label">Total Scheduled</span><span className="stat-value">{inspTotal}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--accent)'}}>Pending Inspections</span><span className="stat-value" style={{color:'var(--accent)'}}>{inspPending}</span></div>
+            <div className="card stat-box"><span className="stat-label" style={{color:'var(--success)'}}>Completed</span><span className="stat-value" style={{color:'var(--success)'}}>{inspCompleted}</span></div>
+          </div>
+
+          <div className="grid-split">
+            <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
+              <div className="card-title">Upcoming Periodic Inspections</div>
+              <table>
+                <thead><tr><th>Inspection ID</th><th>Product & Site</th><th>Quarter</th><th>Scheduled Date</th><th>Status</th></tr></thead>
+                <tbody>
+                  {data.inspections.map(i => {
+                    const p = data.products.find(x => x.id === i.productId);
+                    return <tr key={i.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{i.id}</td><td>{p?.category} - {p?.customerName}</td><td><span className="badge" style={{background:'var(--surface-hover)'}}>{i.quarter}</span></td><td>{i.scheduledDate}</td><td><span className={`badge b-${i.status.toLowerCase()}`}>{i.status}</span></td></tr>
+                  })}
+                  {data.inspections.length === 0 && <tr><td colSpan="5" style={{textAlign:'center', color:'var(--muted)', padding:'30px'}}>No inspections scheduled yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="card">
+              <div className="card-title">Inspection Types</div>
+              <div style={{ width: '100%', height: 250 }}>
+                {inspPieData.length > 0 ? (
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={inspPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value" label>
+                        {inspPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{textAlign:'center', color:'var(--muted)', marginTop: 50}}>No inspection data available.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🟣 WINDOW 3: ANALYTICS (Now 3rd) */}
       {activeWindow === 'analytics' && (
         <div className="animate-fade-in">
           <div className="grid-2">
-            
-            {/* Engineer Performance Chart */}
             <div className="card">
               <div className="card-title">
-                Engineer Workload (Total Tickets)
+                Engineer Workload
                 <select className="select-input" value={engFilter} onChange={e => setEngFilter(e.target.value)}>
                   <option value="All">All Engineers</option>
                   {engineerData.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
                 </select>
               </div>
               <div style={{ width: '100%', height: 300 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie 
-                      data={engFilter === 'All' ? pieData : pieData.filter(d => d.name === engFilter)} 
-                      cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
-                      label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {engPieData.length > 0 ? (
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie 
+                        data={engFilter === 'All' ? engPieData : engPieData.filter(d => d.name === engFilter)} 
+                        cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                        label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {engPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : <div style={{textAlign:'center', color:'var(--muted)', marginTop: 100}}>No engineer assignments yet.</div>}
               </div>
             </div>
 
-            {/* Project Distribution Chart */}
             <div className="card">
               <div className="card-title">Project-Wise Ticket Volume</div>
               <div style={{ width: '100%', height: 300 }}>
-                <ResponsiveContainer>
-                  <BarChart data={projectData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="name" stroke="var(--muted)" fontSize={12} tickLine={false} />
-                    <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{fill: 'var(--surface-hover)'}} />
-                    <Bar dataKey="tickets" fill="var(--accent)" radius={[4, 4, 0, 0]} barSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {projectData.length > 0 ? (
+                  <ResponsiveContainer>
+                    <BarChart data={projectData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="name" stroke="var(--muted)" fontSize={12} tickLine={false} />
+                      <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{fill: 'var(--surface-hover)'}} />
+                      <Bar dataKey="tickets" fill="var(--accent)" radius={[4, 4, 0, 0]} barSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <div style={{textAlign:'center', color:'var(--muted)', marginTop: 100}}>No project data yet.</div>}
               </div>
             </div>
-
           </div>
 
-          {/* Engineer Detail Table */}
           <div className="card">
             <div className="card-title">Engineer Service History Summary</div>
             <table>
@@ -234,63 +348,6 @@ function AdminDashboard({ data }) {
                   </tr>
                 ))}
                 {engineerData.length === 0 && <tr><td colSpan="5" style={{textAlign:'center', color:'var(--muted)'}}>No engineer data available</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 🟢 WINDOW 2: SERVICES (Existing logic) */}
-      {activeWindow === 'service' && (
-        <div className="animate-fade-in">
-          <div className="grid-3">
-            <div className="card stat-box"><span className="stat-label">Total Complaints</span><span className="stat-value">{data.tickets.length}</span></div>
-            <div className="card stat-box"><span className="stat-label" style={{color:'var(--warn)'}}>Pending</span><span className="stat-value" style={{color:'var(--warn)'}}>{data.tickets.filter(t=>t.status==='Pending').length}</span></div>
-            <div className="card stat-box"><span className="stat-label" style={{color:'var(--success)'}}>Completed</span><span className="stat-value" style={{color:'var(--success)'}}>{data.tickets.filter(t=>t.status==='Completed').length}</span></div>
-          </div>
-          <div className="grid-2">
-            <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
-              <div className="card-title">Recent Complaints</div>
-              <table>
-                <thead><tr><th>Ticket ID</th><th>Category</th><th>Status</th><th>Engineer</th></tr></thead>
-                <tbody>
-                  {data.tickets.slice(0, 5).map(t => {
-                    const p = data.products.find(x => x.id === t.productId);
-                    return <tr key={t.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{t.ticketId}</td><td>{p?.category || 'Unknown'}</td><td><span className={`badge b-${t.status.toLowerCase()}`}>{t.status}</span></td><td>{t.assignedEngineer || 'Unassigned'}</td></tr>
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="card">
-              <div className="card-title">Product Lookup</div>
-              <select className="select-input" style={{width: '100%', marginBottom: 20}} onChange={(e) => setSelectedProduct(e.target.value)} value={selectedProduct}>
-                <option value="">Select a Product...</option>
-                {data.products.map(p => <option key={p.id} value={p.id}>{p.serialNo} - {p.customerName}</option>)}
-              </select>
-              {prodDetails ? (
-                <div style={{display:'flex', flexDirection:'column', gap:'12px', background:'var(--bg)', padding:'16px', borderRadius:'8px'}}>
-                  <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Customer:</span> <strong>{prodDetails.customerName}</strong></div>
-                  <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Project:</span> <strong>{prodDetails.project}</strong></div>
-                  <div style={{display:'flex', justifyContent:'space-between'}}><span style={{color:'var(--muted)'}}>Zone Eng:</span> <strong>{prodDetails.zoneEngineerId}</strong></div>
-                </div>
-              ) : <div style={{textAlign:'center', color:'var(--muted)', padding:'20px 0'}}>Select a product.</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🔵 WINDOW 3: INSPECTIONS (Existing logic) */}
-      {activeWindow === 'inspection' && (
-        <div className="animate-fade-in">
-           <div className="card" style={{overflowY: 'auto', maxHeight: '400px'}}>
-            <div className="card-title">Upcoming Periodic Inspections</div>
-            <table>
-              <thead><tr><th>Inspection ID</th><th>Product & Site</th><th>Quarter</th><th>Scheduled Date</th><th>Status</th></tr></thead>
-              <tbody>
-                {data.inspections.map(i => {
-                  const p = data.products.find(x => x.id === i.productId);
-                  return <tr key={i.id}><td style={{fontFamily:'var(--mono)', fontWeight:600}}>{i.id}</td><td>{p?.category} - {p?.customerName}</td><td><span className="badge" style={{background:'var(--surface-hover)'}}>{i.quarter}</span></td><td>{i.scheduledDate}</td><td><span className={`badge b-${i.status.toLowerCase()}`}>{i.status}</span></td></tr>
-                })}
               </tbody>
             </table>
           </div>
